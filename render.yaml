@@ -1,0 +1,9 @@
+services:
+  - type: web
+    name: java-dsa-journal
+    runtime: python
+    plan: free
+    buildCommand: python -m compileall -q start-journal.py
+    startCommand: python start-journal.py
+    healthCheckPath: /api/catalog
+    autoDeployTrigger: commit

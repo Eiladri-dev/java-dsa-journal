@@ -1,0 +1,1864 @@
+<!DOCTYPE html>
+<html lang="en" data-density="balanced" data-glow="medium">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>PrimeNo.java — a guided dissection</title>
+<style>
+:root{
+  --bg:#05070d;
+  --panel:#0a0e17;
+  --ink:#e9edf8;
+  --muted:#9aa5bd;
+  --dim:#68728c;
+  --line:rgba(255,255,255,.075);
+  --line-strong:rgba(255,255,255,.16);
+  --brand:#7c9cff;
+  --brand-2:#67e8d5;
+  --violet:#b79cff;
+  --amber:#ffb066;
+  --rose:#ff8ba0;
+  --green:#6ee7b7;
+  --sp:1;
+  --lh:1.65;
+  --glow:1;
+  --r:18px;
+  --wrap:1180px;
+  --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+}
+html[data-density="comfort"]{ --sp:1.2; --lh:1.8; }
+html[data-density="compact"]{ --sp:.76; --lh:1.55; }
+html[data-glow="low"]{ --glow:.4; }
+html[data-glow="high"]{ --glow:1.55; }
+
+*{ box-sizing:border-box; }
+html{ scroll-behavior:smooth; -webkit-text-size-adjust:100%; scroll-padding-top:84px; }
+body{
+  margin:0; padding:0;
+  background:var(--bg);
+  color:var(--ink);
+  font-family:"Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  font-size:16px;
+  line-height:var(--lh);
+  -webkit-font-smoothing:antialiased;
+  overflow-x:hidden;
+}
+p{ margin:0 0 calc(14px * var(--sp)); color:var(--muted); }
+p:last-child{ margin-bottom:0; }
+h1,h2,h3,h4{ margin:0; color:var(--ink); letter-spacing:-.025em; font-weight:640; line-height:1.14; }
+a{ color:var(--brand); text-decoration:none; }
+strong{ color:#f2f5ff; font-weight:620; }
+ul,ol{ margin:0 0 calc(14px * var(--sp)); padding-left:1.15em; color:var(--muted); }
+li{ margin-bottom:8px; }
+li::marker{ color:var(--brand); }
+::selection{ background:rgba(124,156,255,.32); color:#fff; }
+
+/* ---------- background ---------- */
+.bg-layer{ position:fixed; inset:0; z-index:0; pointer-events:none; overflow:hidden; }
+.orb{ position:absolute; border-radius:50%; filter:blur(90px); will-change:transform; }
+.orb-a{
+  width:52vw; height:52vw; top:-14vw; left:-10vw;
+  background:radial-gradient(circle at 40% 40%, rgba(124,156,255,.55), rgba(124,156,255,0) 68%);
+  opacity:calc(.5 * var(--glow));
+  animation:drift-a 26s ease-in-out infinite;
+}
+.orb-b{
+  width:46vw; height:46vw; top:22vh; right:-14vw;
+  background:radial-gradient(circle at 50% 50%, rgba(103,232,213,.42), rgba(103,232,213,0) 68%);
+  opacity:calc(.42 * var(--glow));
+  animation:drift-b 32s ease-in-out infinite;
+}
+.orb-c{
+  width:44vw; height:44vw; bottom:-16vw; left:24vw;
+  background:radial-gradient(circle at 50% 50%, rgba(183,156,255,.38), rgba(183,156,255,0) 70%);
+  opacity:calc(.34 * var(--glow));
+  animation:drift-c 38s ease-in-out infinite;
+}
+@keyframes drift-a{ 0%,100%{transform:translate3d(0,0,0) scale(1)} 50%{transform:translate3d(6vw,4vh,0) scale(1.08)} }
+@keyframes drift-b{ 0%,100%{transform:translate3d(0,0,0) scale(1.04)} 50%{transform:translate3d(-5vw,-6vh,0) scale(.94)} }
+@keyframes drift-c{ 0%,100%{transform:translate3d(0,0,0) scale(1)} 50%{transform:translate3d(4vw,-5vh,0) scale(1.1)} }
+
+.grid-lines{
+  position:absolute; inset:0;
+  background-image:
+    linear-gradient(to right, rgba(255,255,255,.05) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(255,255,255,.05) 1px, transparent 1px);
+  background-size:74px 74px;
+  mask-image:radial-gradient(ellipse 80% 60% at 50% 20%, #000 20%, transparent 78%);
+  -webkit-mask-image:radial-gradient(ellipse 80% 60% at 50% 20%, #000 20%, transparent 78%);
+  opacity:.5;
+}
+.noise{
+  position:absolute; inset:0; opacity:.22; mix-blend-mode:overlay;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)' opacity='0.4'/%3E%3C/svg%3E");
+}
+.vignette{ position:absolute; inset:0; background:radial-gradient(ellipse at 50% -10%, transparent 30%, rgba(5,7,13,.72) 82%); }
+
+/* ---------- nav ---------- */
+.nav{
+  position:fixed; top:0; left:0; right:0; z-index:80;
+  background:linear-gradient(180deg, rgba(5,7,13,.94), rgba(5,7,13,.56));
+  backdrop-filter:blur(16px) saturate(150%);
+  -webkit-backdrop-filter:blur(16px) saturate(150%);
+  border-bottom:1px solid rgba(255,255,255,.06);
+}
+.nav-in{
+  width:min(var(--wrap), 100% - 40px); margin-inline:auto;
+  display:flex; align-items:center; justify-content:space-between; gap:16px; height:62px;
+}
+.brand{ display:flex; align-items:center; gap:10px; font-weight:660; font-size:14.5px; letter-spacing:-.01em; color:var(--ink); white-space:nowrap; }
+.brand .dot{ width:9px; height:9px; border-radius:50%; background:var(--brand); box-shadow:0 0 16px var(--brand), 0 0 4px var(--brand); animation:pulse-dot 2.8s ease-in-out infinite; }
+@keyframes pulse-dot{ 0%,100%{ box-shadow:0 0 16px var(--brand), 0 0 4px var(--brand); } 50%{ box-shadow:0 0 26px var(--brand), 0 0 8px var(--brand); } }
+.brand span.sub{ color:var(--dim); font-weight:450; font-size:12.5px; letter-spacing:0; }
+.nav-links{ display:flex; gap:2px; align-items:center; min-width:0; }
+.nav-links a{
+  font-size:12.5px; color:var(--muted); padding:7px 10px; border-radius:9px;
+  transition:color .2s, background .2s, box-shadow .3s; white-space:nowrap;
+}
+.nav-links a:hover{ color:var(--ink); background:rgba(255,255,255,.055); }
+.nav-links a.active{
+  color:#eef2ff; background:rgba(124,156,255,.13);
+  box-shadow:inset 0 0 0 1px rgba(124,156,255,.3), 0 0 24px -10px rgba(124,156,255,.9);
+}
+.progress{ position:absolute; left:0; right:0; bottom:-1px; height:2px; background:linear-gradient(90deg, var(--brand), var(--brand-2) 55%, var(--violet)); transform:scaleX(0); transform-origin:0 50%; transition:transform .1s linear; }
+
+/* ---------- layout ---------- */
+main{ position:relative; z-index:1; }
+.wrap{ width:min(var(--wrap), 100% - 44px); margin-inline:auto; }
+.section{ padding:calc(92px * var(--sp)) 0; position:relative; }
+.section + .section{ border-top:1px solid rgba(255,255,255,.045); }
+.eyebrow{
+  display:flex; align-items:center; gap:12px;
+  font-family:var(--mono); font-size:11.5px; font-weight:600; letter-spacing:.2em;
+  text-transform:uppercase; color:var(--dim);
+}
+.eyebrow::before{ content:""; width:34px; height:1px; background:linear-gradient(90deg, var(--brand), transparent); }
+.eyebrow b{ color:var(--brand); font-weight:600; }
+h2{ font-size:clamp(26px, 3.3vw, 40px); margin:16px 0 16px; }
+h3{ font-size:clamp(16.5px, 1.5vw, 19px); margin-bottom:10px; }
+.lead{ color:var(--muted); font-size:clamp(15px, 1.05vw, 17px); max-width:66ch; line-height:1.7; }
+.head{ margin-bottom:calc(38px * var(--sp)); max-width:74ch; }
+
+/* ---------- reveal ---------- */
+.reveal{ opacity:0; transform:translateY(22px); filter:blur(5px); transition:opacity .9s cubic-bezier(.22,1,.36,1), transform .9s cubic-bezier(.22,1,.36,1), filter .9s ease; transition-delay:var(--d, 0ms); }
+.reveal.in{ opacity:1; transform:none; filter:none; }
+
+/* ---------- cards ---------- */
+.card{
+  position:relative; border-radius:var(--r);
+  background:linear-gradient(158deg, rgba(255,255,255,.058), rgba(255,255,255,.014) 55%, rgba(255,255,255,.028));
+  border:1px solid var(--line);
+  padding:calc(24px * var(--sp));
+  box-shadow:0 1px 0 rgba(255,255,255,.05) inset, 0 30px 60px -42px rgba(0,0,0,.95);
+  transition:transform .5s cubic-bezier(.22,1,.36,1), border-color .4s, box-shadow .5s;
+  backdrop-filter:blur(10px);
+  overflow:hidden;
+}
+.card::before{
+  content:""; position:absolute; inset:0 0 auto 0; height:1px;
+  background:linear-gradient(90deg, transparent, rgba(124,156,255,.55), rgba(103,232,213,.35), transparent);
+  opacity:0; transition:opacity .5s;
+}
+.card:hover{ transform:translateY(-4px); border-color:var(--line-strong); box-shadow:0 1px 0 rgba(255,255,255,.07) inset, 0 46px 80px -48px rgba(0,0,0,1), 0 0 60px -34px rgba(124,156,255,.55); }
+.card:hover::before{ opacity:1; }
+.card h3{ display:flex; align-items:center; gap:10px; }
+.tag{
+  font-family:var(--mono); font-size:10.5px; letter-spacing:.12em; text-transform:uppercase;
+  padding:4px 8px; border-radius:6px; color:var(--brand);
+  background:rgba(124,156,255,.11); border:1px solid rgba(124,156,255,.22);
+}
+.grid{ display:grid; gap:calc(18px * var(--sp)); }
+.g3{ grid-template-columns:repeat(3, minmax(0,1fr)); }
+.g2{ grid-template-columns:repeat(2, minmax(0,1fr)); }
+@media (max-width:940px){ .g3{ grid-template-columns:1fr; } .g2{ grid-template-columns:1fr; } }
+
+/* ---------- hero ---------- */
+.hero{ position:relative; padding:calc(132px + 34px) 0 calc(84px * var(--sp)); }
+.hero-grid{ display:grid; grid-template-columns:1.06fr .94fr; gap:clamp(28px,4vw,56px); align-items:center; }
+@media (max-width:1020px){ .hero-grid{ grid-template-columns:1fr; gap:44px; } }
+.hero h1{ font-size:clamp(42px, 6.6vw, 82px); line-height:1.02; letter-spacing:-.045em; font-weight:660; }
+.hero h1 .file{ background:linear-gradient(100deg, #fff 6%, var(--brand) 42%, var(--brand-2) 74%, var(--violet)); -webkit-background-clip:text; background-clip:text; color:transparent; background-size:210% 100%; animation:sheen 9s ease-in-out infinite; }
+@keyframes sheen{ 0%,100%{ background-position:0% 50%; } 50%{ background-position:100% 50%; } }
+.hero .kicker{
+  display:inline-flex; align-items:center; gap:9px; margin-bottom:22px;
+  font-family:var(--mono); font-size:11.5px; letter-spacing:.16em; text-transform:uppercase; color:#c9d3ee;
+  padding:7px 13px 7px 9px; border-radius:999px;
+  background:rgba(255,255,255,.045); border:1px solid var(--line);
+  box-shadow:0 0 40px -22px rgba(124,156,255,.9);
+}
+.hero .kicker i{ width:6px; height:6px; border-radius:50%; background:var(--brand-2); box-shadow:0 0 12px var(--brand-2); font-style:normal; }
+.hero .sub{ font-size:clamp(15.5px, 1.35vw, 19px); color:#b9c3dc; max-width:52ch; margin-top:22px; line-height:1.62; }
+.chips{ display:flex; flex-wrap:wrap; gap:8px; margin-top:26px; }
+.chip{
+  font-family:var(--mono); font-size:11.8px; color:#c3cde8; padding:6px 11px; border-radius:8px;
+  background:rgba(255,255,255,.04); border:1px solid var(--line); transition:.3s;
+}
+.chip:hover{ border-color:rgba(124,156,255,.4); color:#fff; box-shadow:0 0 26px -14px rgba(124,156,255,.9); }
+.cta{ display:flex; flex-wrap:wrap; gap:12px; margin-top:34px; }
+.btn{
+  display:inline-flex; align-items:center; gap:9px; cursor:pointer;
+  font-family:inherit; font-size:14px; font-weight:560; letter-spacing:.005em;
+  padding:12px 20px; border-radius:12px; border:1px solid transparent;
+  transition:transform .35s cubic-bezier(.22,1,.36,1), box-shadow .35s, background .3s, border-color .3s;
+  text-decoration:none;
+}
+.btn-primary{
+  color:#080c16;
+  background:linear-gradient(135deg, #a9bcff, #7c9cff 46%, #67e8d5);
+  box-shadow:0 0 0 1px rgba(255,255,255,.16) inset, 0 18px 46px -20px rgba(124,156,255,.95), 0 0 40px -22px rgba(103,232,213,.9);
+}
+.btn-primary:hover{ transform:translateY(-2px); box-shadow:0 0 0 1px rgba(255,255,255,.22) inset, 0 24px 54px -18px rgba(124,156,255,1), 0 0 54px -18px rgba(103,232,213,1); }
+.btn-ghost{ color:#d6ddf2; background:rgba(255,255,255,.045); border-color:var(--line-strong); }
+.btn-ghost:hover{ transform:translateY(-2px); background:rgba(255,255,255,.08); border-color:rgba(124,156,255,.42); box-shadow:0 0 42px -22px rgba(124,156,255,.9); }
+
+/* hero visual */
+.hero-vis{ position:relative; perspective:1200px; }
+.verdict-card{
+  position:relative; border-radius:22px; padding:calc(26px * var(--sp));
+  background:linear-gradient(165deg, rgba(20,26,42,.92), rgba(9,12,20,.92));
+  border:1px solid rgba(255,255,255,.1);
+  box-shadow:0 1px 0 rgba(255,255,255,.09) inset, 0 60px 120px -60px rgba(0,0,0,1), 0 0 90px -50px rgba(124,156,255,.85);
+  transform-style:preserve-3d;
+  transition:transform .35s ease-out;
+  animation:floaty 9s ease-in-out infinite;
+}
+@keyframes floaty{ 0%,100%{ translate:0 0; } 50%{ translate:0 -10px; } }
+.verdict-card .vc-head{ display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:18px; }
+.verdict-card .vc-head span{ font-family:var(--mono); font-size:11px; letter-spacing:.16em; text-transform:uppercase; color:var(--dim); }
+.vrow{
+  display:grid; grid-template-columns:92px 1fr auto; align-items:center; gap:12px;
+  padding:12px 12px; border-radius:11px; margin-bottom:8px;
+  background:rgba(255,255,255,.028); border:1px solid rgba(255,255,255,.06);
+  transition:transform .4s cubic-bezier(.22,1,.36,1), background .4s, border-color .4s;
+}
+.vrow:hover{ transform:translateX(4px); background:rgba(255,255,255,.05); }
+.vrow .k{ font-family:var(--mono); font-size:12px; color:#dbe3f7; white-space:nowrap; }
+.vrow .v{ font-size:13px; color:var(--muted); letter-spacing:-.005em; }
+.vrow .dotmark{ width:8px; height:8px; border-radius:50%; box-shadow:0 0 14px currentColor; }
+.vrow.p{ color:var(--brand-2); } .vrow.p .k{ color:#b9f5e9; }
+.vrow.c{ color:var(--brand); }
+.vrow.one{ color:var(--violet); }
+.vrow.err{ color:var(--amber); }
+.vrow.err .v{ color:#ffcf9e; }
+.vrow.err{ box-shadow:0 0 34px -22px rgba(255,176,102,.9); }
+.orbit{
+  position:absolute; inset:-38px; border-radius:50%;
+  border:1px dashed rgba(124,156,255,.16);
+  animation:spin 46s linear infinite; pointer-events:none;
+}
+.orbit::after{ content:""; position:absolute; top:-3px; left:50%; width:6px; height:6px; border-radius:50%; background:var(--brand-2); box-shadow:0 0 16px var(--brand-2); }
+@keyframes spin{ to{ transform:rotate(360deg); } }
+.scrollcue{ display:flex; align-items:center; gap:10px; margin-top:calc(52px * var(--sp)); color:var(--dim); font-family:var(--mono); font-size:11px; letter-spacing:.18em; text-transform:uppercase; }
+.scrollcue .bar{ width:52px; height:1px; background:linear-gradient(90deg, var(--brand), transparent); position:relative; overflow:hidden; }
+.scrollcue .bar::after{ content:""; position:absolute; inset:0; background:var(--brand-2); animation:sweep 2.6s ease-in-out infinite; }
+@keyframes sweep{ 0%{ transform:translateX(-100%); } 60%,100%{ transform:translateX(100%); } }
+
+/* ---------- prose blocks ---------- */
+.prose{ max-width:74ch; }
+.prose h3{ margin-top:calc(26px * var(--sp)); }
+.prose ul{ padding-left:1.1em; }
+.note{
+  margin:calc(18px * var(--sp)) 0 0; padding:14px 16px; border-radius:12px;
+  background:rgba(124,156,255,.07); border:1px solid rgba(124,156,255,.2);
+  color:#c8d3f0; font-size:14.5px;
+}
+.note.warn{ background:rgba(255,176,102,.075); border-color:rgba(255,176,102,.26); color:#ffd8b4; }
+.note.ok{ background:rgba(110,231,183,.06); border-color:rgba(110,231,183,.24); color:#c4f5e2; }
+.note b{ color:#fff; }
+
+/* ---------- code ---------- */
+.code{
+  position:relative; border-radius:14px; overflow:hidden;
+  background:linear-gradient(180deg, #080b13, #060910);
+  border:1px solid rgba(255,255,255,.085);
+  box-shadow:0 1px 0 rgba(255,255,255,.05) inset, 0 34px 70px -46px #000;
+  font-family:var(--mono); font-size:13px; line-height:1.72;
+}
+.code .cb{
+  display:flex; align-items:center; justify-content:space-between; gap:12px;
+  padding:9px 14px; border-bottom:1px solid rgba(255,255,255,.07);
+  background:rgba(255,255,255,.022);
+}
+.code .cb .fname{ font-size:11.5px; color:#a9b4cd; letter-spacing:.02em; display:flex; align-items:center; gap:8px; }
+.code .cb .fname i{ width:7px; height:7px; border-radius:50%; background:var(--brand); box-shadow:0 0 12px var(--brand); font-style:normal; }
+.code pre{ margin:0; padding:16px 18px; overflow-x:auto; color:#cfd8ee; }
+.code pre::-webkit-scrollbar{ height:8px; }
+.code pre::-webkit-scrollbar-thumb{ background:rgba(255,255,255,.14); border-radius:99px; }
+.tok-k{ color:#9aa9ff; } .tok-t{ color:#7fe7d4; } .tok-s{ color:#ffc98b; } .tok-c{ color:#5f6b86; font-style:italic; } .tok-n{ color:#f2a8c0; } .tok-m{ color:#c6b3ff; }
+.ln{ display:inline-block; width:2.1em; color:#3d475f; user-select:none; text-align:right; margin-right:14px; }
+.src-note{ font-size:13px; color:var(--dim); margin-top:12px; }
+
+/* inline code */
+code.inl{
+  font-family:var(--mono); font-size:.88em; color:#d7e0f6;
+  background:rgba(255,255,255,.062); border:1px solid rgba(255,255,255,.085);
+  padding:1.5px 6px; border-radius:6px; white-space:nowrap;
+}
+
+/* ---------- tables ---------- */
+.tablewrap.tight table{ min-width:0; font-size:12.9px; }
+.tablewrap.tight tbody td{ padding:11px 12px; }
+.tablewrap.tight thead th{ padding:11px 12px; font-size:10.5px; }
+.tablewrap{ overflow-x:auto; border-radius:14px; border:1px solid var(--line); background:rgba(255,255,255,.02); }
+table{ width:100%; border-collapse:collapse; font-size:14px; min-width:560px; }
+thead th{
+  text-align:left; padding:13px 16px; font-family:var(--mono); font-size:11px;
+  letter-spacing:.14em; text-transform:uppercase; color:var(--dim); font-weight:600;
+  border-bottom:1px solid var(--line); white-space:nowrap;
+}
+tbody td{ padding:13px 16px; border-bottom:1px solid rgba(255,255,255,.045); color:var(--muted); vertical-align:top; }
+tbody tr:last-child td{ border-bottom:none; }
+tbody tr{ transition:background .25s; }
+tbody tr:hover{ background:rgba(124,156,255,.055); }
+td.mono, th.mono, .mono{ font-family:var(--mono); font-size:12.6px; color:#cbd5ee; }
+.pill{ display:inline-block; padding:2px 9px; border-radius:99px; font-family:var(--mono); font-size:11.5px; border:1px solid; }
+.pill.ok{ color:#9df3d3; border-color:rgba(110,231,183,.35); background:rgba(110,231,183,.09); }
+.pill.bad{ color:#ffc79b; border-color:rgba(255,176,102,.35); background:rgba(255,176,102,.09); }
+.pill.neu{ color:#c3cffe; border-color:rgba(124,156,255,.35); background:rgba(124,156,255,.09); }
+.pill.vio{ color:#dcc7ff; border-color:rgba(183,156,255,.35); background:rgba(183,156,255,.1); }
+
+/* ---------- terminal ---------- */
+.sim{ display:grid; grid-template-columns:1.32fr .68fr; gap:calc(18px * var(--sp)); align-items:start; }
+@media (max-width:980px){ .sim{ grid-template-columns:1fr; } }
+.term{
+  border-radius:16px; overflow:hidden; border:1px solid rgba(255,255,255,.1);
+  background:linear-gradient(180deg, #070a11, #05070c);
+  box-shadow:0 1px 0 rgba(255,255,255,.06) inset, 0 50px 100px -60px #000, 0 0 80px -50px rgba(103,232,213,.6);
+}
+.term-bar{ display:flex; align-items:center; gap:10px; padding:10px 14px; border-bottom:1px solid rgba(255,255,255,.07); background:rgba(255,255,255,.024); }
+.term-bar .dots{ display:flex; gap:6px; }
+.term-bar .dots i{ width:9px; height:9px; border-radius:50%; background:#2b3246; }
+.term-bar .dots i:nth-child(1){ background:#ff6b6b55; } .term-bar .dots i:nth-child(2){ background:#ffd16655; } .term-bar .dots i:nth-child(3){ background:#6ee7b766; }
+.term-bar .tt{ font-family:var(--mono); font-size:11.5px; color:#8d99b4; letter-spacing:.03em; }
+.term-bar .live{ margin-left:auto; display:inline-flex; align-items:center; gap:6px; font-family:var(--mono); font-size:10.5px; letter-spacing:.14em; text-transform:uppercase; color:#8ff0d3; }
+.term-bar .live i{ width:6px; height:6px; border-radius:50%; background:#6ee7b7; box-shadow:0 0 12px #6ee7b7; animation:pulse-dot 2s ease-in-out infinite; }
+.term-body{
+  font-family:var(--mono); font-size:13px; line-height:1.75; padding:16px 16px 8px;
+  height:320px; overflow-y:auto; color:#cfd8ee;
+}
+.term-body::-webkit-scrollbar{ width:8px; }
+.term-body::-webkit-scrollbar-thumb{ background:rgba(255,255,255,.13); border-radius:99px; }
+.l{ animation:lineIn .32s cubic-bezier(.22,1,.36,1) both; white-space:pre-wrap; word-break:break-word; }
+@keyframes lineIn{ from{ opacity:0; transform:translateY(5px); } to{ opacity:1; transform:none; } }
+.l-prompt{ color:#a9bcff; }
+.l-in{ color:#6f7c98; }
+.l-in::before{ content:"› "; color:#4b5670; }
+.l-div{ color:#7fe7d4; }
+.l-res{ color:#ffffff; font-weight:600; }
+.l-err{ color:#ff9e9e; }
+.l-note{ color:#5d6a85; font-style:italic; }
+.l-sep{ color:#3f4a62; letter-spacing:.1em; margin:6px 0; }
+.caret{ display:inline-block; width:7px; height:14px; background:#a9bcff; vertical-align:-2px; animation:blink 1.05s steps(1) infinite; }
+@keyframes blink{ 50%{ opacity:0; } }
+.term-form{ display:flex; align-items:center; gap:10px; padding:12px 14px; border-top:1px solid rgba(255,255,255,.07); background:rgba(255,255,255,.018); }
+.term-form .pfx{ font-family:var(--mono); color:#6ee7b7; font-size:14px; }
+.term-form input{
+  flex:1; min-width:0; background:transparent; border:none; outline:none;
+  font-family:var(--mono); font-size:13.5px; color:#eaf0ff; padding:6px 0;
+}
+.term-form input::placeholder{ color:#4d5871; }
+.term-form button{
+  font-family:var(--mono); font-size:11.5px; letter-spacing:.1em; text-transform:uppercase;
+  padding:8px 14px; border-radius:9px; cursor:pointer; color:#08111a; border:none;
+  background:linear-gradient(135deg, #a9bcff, #67e8d5);
+  box-shadow:0 0 28px -12px rgba(124,156,255,.9); transition:.28s;
+}
+.term-form button:hover{ filter:brightness(1.08); box-shadow:0 0 34px -8px rgba(124,156,255,1); }
+.presets{ display:flex; flex-wrap:wrap; gap:7px; margin-top:14px; }
+.preset{
+  font-family:var(--mono); font-size:12px; padding:6px 11px; border-radius:8px; cursor:pointer;
+  color:#c2cdeb; background:rgba(255,255,255,.04); border:1px solid var(--line); transition:.26s;
+}
+.preset:hover{ color:#fff; border-color:rgba(124,156,255,.45); background:rgba(124,156,255,.1); box-shadow:0 0 30px -16px rgba(124,156,255,1); transform:translateY(-1px); }
+.preset small{ color:var(--dim); font-size:10px; margin-left:5px; letter-spacing:.06em; text-transform:uppercase; }
+.preset.ghost{ color:#8c97b1; }
+
+/* state panel */
+.state{ display:grid; gap:10px; }
+.stat{
+  display:flex; align-items:center; justify-content:space-between; gap:10px;
+  padding:12px 14px; border-radius:11px;
+  background:rgba(255,255,255,.03); border:1px solid rgba(255,255,255,.07);
+}
+.stat .lab{ font-family:var(--mono); font-size:11px; letter-spacing:.12em; text-transform:uppercase; color:var(--dim); }
+.stat .val{ font-family:var(--mono); font-size:15px; color:#eaf0ff; }
+.stat .val.hot{ color:#7fe7d4; text-shadow:0 0 22px rgba(103,232,213,.65); }
+.stat.note-stat{ display:block; }
+.stat.note-stat .lab{ display:block; margin-bottom:5px; }
+.stat.note-stat .val{ display:block; font-size:12.5px; line-height:1.6; color:#b9c3dc; font-family:var(--mono); }
+.stat .val.warnv{ color:#ffc79b; }
+
+/* ---------- trace ---------- */
+.trace{ }
+.trace-bar{ display:flex; flex-wrap:wrap; align-items:center; gap:10px; margin-bottom:16px; }
+.tbtn{
+  font-family:var(--mono); font-size:12px; padding:8px 13px; border-radius:9px; cursor:pointer;
+  color:#cbd6f2; background:rgba(255,255,255,.045); border:1px solid var(--line); transition:.26s;
+}
+.tbtn:hover:not(:disabled){ color:#fff; border-color:rgba(124,156,255,.45); box-shadow:0 0 30px -16px rgba(124,156,255,1); }
+.tbtn:disabled{ opacity:.35; cursor:not-allowed; }
+.tbtn.primary{ background:rgba(124,156,255,.16); border-color:rgba(124,156,255,.4); color:#e8edff; }
+select{
+  font-family:var(--mono); font-size:12.5px; padding:8px 12px; border-radius:9px; cursor:pointer;
+  color:#eaf0ff; background:#0c1119; border:1px solid var(--line-strong); outline:none;
+}
+.trace-count{ margin-left:auto; font-family:var(--mono); font-size:11.5px; color:var(--dim); letter-spacing:.08em; }
+.trace-grid{ display:grid; grid-template-columns:1.15fr .85fr; gap:calc(18px * var(--sp)); align-items:start; }
+@media (max-width:980px){ .trace-grid{ grid-template-columns:1fr; } }
+.now-card{
+  border-radius:16px; padding:calc(22px * var(--sp)); position:relative; overflow:hidden;
+  background:linear-gradient(160deg, rgba(24,31,50,.85), rgba(8,11,18,.9));
+  border:1px solid rgba(124,156,255,.22);
+  box-shadow:0 1px 0 rgba(255,255,255,.07) inset, 0 40px 80px -55px #000, 0 0 70px -46px rgba(124,156,255,.9);
+}
+.now-card .stepno{ font-family:var(--mono); font-size:11px; letter-spacing:.18em; text-transform:uppercase; color:var(--brand); }
+.now-card h3{ margin:10px 0 8px; font-size:clamp(17px,1.6vw,21px); }
+.now-card .detail{ color:#b2bdd8; font-size:14.5px; margin:0; min-height:2.6em; }
+.now-card .stepno, .now-card h3, .now-card .detail{ transition:opacity .22s ease, transform .22s ease; }
+.now-card.swap .stepno, .now-card.swap h3, .now-card.swap .detail{ opacity:0; transform:translateY(-4px); }
+.vtile{ transition:border-color .35s, box-shadow .35s, background .35s; }
+.vars{ display:grid; grid-template-columns:repeat(3, minmax(0,1fr)); gap:8px; margin-top:18px; }
+.vtile{ padding:9px 11px; border-radius:10px; background:rgba(255,255,255,.035); border:1px solid rgba(255,255,255,.07); }
+.vtile .k{ font-family:var(--mono); font-size:10px; letter-spacing:.1em; text-transform:uppercase; color:var(--dim); }
+.vtile .v{ font-family:var(--mono); font-size:14px; color:#eaf0ff; margin-top:2px; }
+.vtile.changed{ border-color:rgba(103,232,213,.45); box-shadow:0 0 26px -14px rgba(103,232,213,.9); }
+.vtile.changed .v{ color:#7fe7d4; }
+.tc-body{ font-family:var(--mono); font-size:12.5px; line-height:1.7; padding:14px 16px; height:250px; overflow-y:auto; color:#cfd8ee; background:linear-gradient(180deg,#070a11,#05070c); border-radius:12px; border:1px solid rgba(255,255,255,.08); }
+.tc-head{ font-family:var(--mono); font-size:10.5px; letter-spacing:.16em; text-transform:uppercase; color:var(--dim); margin-bottom:8px; }
+.rail{ display:flex; flex-wrap:wrap; gap:5px; margin-top:18px; }
+.rail button{ width:24px; height:6px; border-radius:99px; border:none; cursor:pointer; background:rgba(255,255,255,.1); padding:0; transition:.25s; }
+.rail button:hover{ background:rgba(255,255,255,.26); }
+.rail button.done{ background:rgba(124,156,255,.45); }
+.rail button.cur{ background:linear-gradient(90deg,var(--brand),var(--brand-2)); box-shadow:0 0 16px rgba(124,156,255,.85); }
+
+/* ---------- call stack ---------- */
+.stack{
+  margin-top:12px; padding:12px 14px; border-radius:12px;
+  background:rgba(255,255,255,.025); border:1px solid rgba(255,255,255,.07);
+}
+.stack .sh{ font-family:var(--mono); font-size:10.5px; letter-spacing:.16em; text-transform:uppercase; color:var(--dim); margin-bottom:9px; display:flex; justify-content:space-between; gap:10px; }
+.stack .sh b{ color:#7fe7d4; font-weight:600; }
+.frame{
+  display:flex; align-items:center; gap:10px;
+  font-family:var(--mono); font-size:12px; color:#8e9ab5;
+  padding:8px 11px; border-radius:9px; margin-bottom:6px;
+  background:rgba(255,255,255,.022); border:1px solid rgba(255,255,255,.055);
+  transition:.4s cubic-bezier(.22,1,.36,1);
+}
+.frame:last-child{ margin-bottom:0; }
+.frame .name{ flex:0 0 auto; }
+.frame .meta{ font-size:10.5px; letter-spacing:.04em; color:#535e77; margin-left:auto; text-align:right; }
+.frame.active{
+  color:#eef3ff; border-color:rgba(124,156,255,.42);
+  background:rgba(124,156,255,.1);
+  box-shadow:0 0 34px -22px rgba(124,156,255,1), inset 0 0 0 1px rgba(124,156,255,.08);
+  transform:translateX(4px);
+}
+.frame.active .meta{ color:#a9bcff; }
+.frame.active::before{
+  content:""; width:6px; height:6px; border-radius:50%; margin-right:2px;
+  background:var(--brand-2); box-shadow:0 0 12px var(--brand-2);
+}
+.frame.active{ padding-left:9px; }
+.frame{ padding-left:11px; }
+
+/* ---------- flow ---------- */
+.flow{ display:grid; gap:10px; margin-top:6px; }
+.fnode{
+  display:grid; grid-template-columns:auto 1fr; gap:14px; align-items:start;
+  padding:14px 16px; border-radius:12px;
+  background:rgba(255,255,255,.03); border:1px solid var(--line);
+  transition:.35s; position:relative;
+}
+.fnode:hover{ border-color:rgba(124,156,255,.34); background:rgba(124,156,255,.055); }
+.fnode .cond{ font-family:var(--mono); font-size:12.5px; color:#dfe6f8; padding-top:1px; white-space:nowrap; }
+.fnode .act{ font-size:14px; color:var(--muted); }
+.fnode.key{ border-color:rgba(103,232,213,.3); box-shadow:0 0 40px -30px rgba(103,232,213,.9); }
+.fnode.bad{ border-color:rgba(255,176,102,.3); }
+.arrow{ text-align:center; color:#39445c; font-size:13px; line-height:1; }
+
+/* ---------- takeaways / challenge ---------- */
+.challenge{ border-radius:16px; padding:calc(22px * var(--sp)); background:linear-gradient(150deg, rgba(124,156,255,.1), rgba(103,232,213,.05)); border:1px solid rgba(124,156,255,.24); }
+.challenge h3{ margin-bottom:8px; }
+.reveal-btn{ margin-top:12px; }
+.answer{ display:none; margin-top:14px; padding:14px 16px; border-radius:11px; background:rgba(5,7,13,.6); border:1px solid rgba(255,255,255,.09); color:#c6d1ec; font-size:14.2px; }
+.answer.open{ display:block; animation:lineIn .4s cubic-bezier(.22,1,.36,1) both; }
+
+/* ---------- source ---------- */
+.src-wrap{ position:relative; }
+.copy-btn{
+  font-family:var(--mono); font-size:11px; letter-spacing:.1em; text-transform:uppercase; cursor:pointer;
+  padding:6px 11px; border-radius:7px; color:#cfd8ee; background:rgba(255,255,255,.06);
+  border:1px solid var(--line-strong); transition:.26s;
+}
+.copy-btn:hover{ color:#fff; border-color:rgba(124,156,255,.5); box-shadow:0 0 26px -14px rgba(124,156,255,1); }
+.copy-btn.ok{ color:#8ff0d3; border-color:rgba(110,231,183,.5); }
+
+/* ---------- complexity ---------- */
+.bars{ display:grid; gap:10px; margin-top:8px; }
+.barrow{ display:grid; grid-template-columns:96px 1fr 118px; gap:12px; align-items:center; font-family:var(--mono); font-size:12px; color:#b6c1da; }
+.bartrack{ height:8px; border-radius:99px; background:rgba(255,255,255,.06); overflow:hidden; }
+.barfill{ height:100%; width:0; border-radius:99px; background:linear-gradient(90deg, var(--brand), var(--brand-2)); box-shadow:0 0 24px -6px rgba(124,156,255,.85); transition:width 1.1s cubic-bezier(.22,1,.36,1); }
+.barrow .ops{ color:var(--dim); text-align:right; font-size:11.5px; }
+
+/* ---------- dock (collapsed by default: never covers the page) ---------- */
+.dock{
+  position:fixed; left:50%; bottom:16px; z-index:70;
+  transform:translateX(-50%);
+  display:flex; flex-direction:column; align-items:flex-end; gap:8px;
+  transition:opacity .55s ease;
+}
+.dock.idle{ opacity:.6; }
+.dock.idle:hover, .dock.panel-open{ opacity:1; }
+.dock-toggle{
+  display:flex; align-items:center; gap:9px; cursor:pointer;
+  font-family:var(--mono); font-size:11px; letter-spacing:.08em; text-transform:uppercase;
+  padding:8px 13px; border-radius:999px; color:#c3cde8;
+  background:rgba(9,12,20,.87);
+  backdrop-filter:blur(14px) saturate(150%); -webkit-backdrop-filter:blur(14px) saturate(150%);
+  border:1px solid rgba(255,255,255,.11);
+  box-shadow:0 18px 44px -26px #000, 0 0 34px -24px rgba(124,156,255,.9);
+  transition:color .28s, border-color .28s, box-shadow .3s, transform .3s;
+}
+.dock-toggle:hover{ color:#fff; border-color:rgba(124,156,255,.5); box-shadow:0 18px 44px -26px #000, 0 0 40px -18px rgba(124,156,255,.95); }
+.dock-toggle .g{ width:6px; height:6px; border-radius:50%; background:var(--brand-2); box-shadow:0 0 10px var(--brand-2); animation:pulse-dot 2.8s ease-in-out infinite; }
+.dock-toggle .chev{ transition:transform .38s cubic-bezier(.22,1,.36,1); display:block; }
+.dock.panel-open .dock-toggle .chev{ transform:rotate(180deg); }
+.dock-panel{
+  display:flex; align-items:center; gap:14px; flex-wrap:wrap; justify-content:flex-end;
+  max-height:0; opacity:0; padding:0 12px; overflow:hidden;
+  border-radius:14px; background:rgba(9,12,20,.9);
+  border:1px solid rgba(255,255,255,.1);
+  backdrop-filter:blur(16px) saturate(150%); -webkit-backdrop-filter:blur(16px) saturate(150%);
+  box-shadow:0 26px 56px -30px #000, 0 0 50px -34px rgba(124,156,255,.9);
+  transform:translateY(10px) scale(.98); transform-origin:100% 100%; pointer-events:none;
+  transition:max-height .42s cubic-bezier(.22,1,.36,1), opacity .3s ease, transform .42s cubic-bezier(.22,1,.36,1), padding .3s;
+}
+.dock.panel-open .dock-panel{ max-height:120px; opacity:1; padding:10px 12px; transform:none; pointer-events:auto; }
+.dock .grp{ display:flex; align-items:center; gap:8px; }
+.dock .glab{ font-family:var(--mono); font-size:10px; letter-spacing:.16em; text-transform:uppercase; color:var(--dim); }
+.seg{ display:flex; gap:2px; padding:2px; border-radius:9px; background:rgba(255,255,255,.05); border:1px solid rgba(255,255,255,.07); }
+.seg button{
+  font-family:var(--mono); font-size:11px; letter-spacing:.02em; padding:5px 9px; border-radius:7px;
+  border:none; background:transparent; color:#9aa5bd; cursor:pointer; transition:.26s;
+}
+.seg button:hover{ color:#e6ecff; }
+.seg button.on{ color:#0a0f18; background:linear-gradient(135deg,#a9bcff,#67e8d5); box-shadow:0 0 22px -10px rgba(124,156,255,1); }
+@media (max-width:720px){ .dock{ bottom:12px; } .dock .glab{ display:none; } .seg button{ font-size:10px; padding:5px 7px; } .dock-toggle{ font-size:10px; padding:7px 11px; } }
+
+/* ---------- footer ---------- */
+footer{ position:relative; z-index:1; border-top:1px solid rgba(255,255,255,.06); padding:44px 0 96px; }
+.foot-in{ display:flex; flex-wrap:wrap; gap:18px; justify-content:space-between; align-items:center; }
+.foot-in p{ margin:0; font-size:13px; color:var(--dim); }
+.foot-in .mono{ font-size:11.5px; color:#4f5a73; }
+
+@media (prefers-reduced-motion: reduce){
+  *, *::before, *::after{ animation-duration:.001ms !important; animation-iteration-count:1 !important; transition-duration:.001ms !important; }
+  html{ scroll-behavior:auto; }
+  .reveal{ opacity:1; transform:none; filter:none; }
+}
+</style>
+</head>
+<body>
+
+<div class="bg-layer" aria-hidden="true">
+  <div class="orb orb-a"></div>
+  <div class="orb orb-b"></div>
+  <div class="orb orb-c"></div>
+  <div class="grid-lines"></div>
+  <div class="noise"></div>
+  <div class="vignette"></div>
+</div>
+
+<header class="nav">
+  <div class="nav-in">
+    <div class="brand"><span class="dot"></span>PrimeNo<span class="sub">/ java dissection</span></div>
+    <nav class="nav-links">
+      <a href="#objective">Objective</a>
+      <a href="#problem">Problem</a>
+      <a href="#logic">Logic</a>
+      <a href="#concepts">Concepts</a>
+      <a href="#experiment">Simulate</a>
+      <a href="#walkthrough">Trace</a>
+      <a href="#edges">Edge cases</a>
+      <a href="#source">Source</a>
+    </nav>
+  </div>
+  <div class="progress" id="progress"></div>
+</header>
+
+<main>
+
+  <!-- ================= HERO ================= -->
+  <section class="hero" id="top">
+    <div class="wrap">
+      <div class="hero-grid">
+        <div class="hero-copy">
+          <div class="kicker"><i></i>Java practice · methods, loops &amp; control flow</div>
+          <h1>PrimeNo<span class="file">.java</span></h1>
+          <p class="sub">One method counts divisors. One integer comes back. Everything the program decides — prime, composite, “neither”, or nothing at all — is read from that single returned value.</p>
+          <div class="chips">
+            <span class="chip">static int isPrime(int num)</span>
+            <span class="chip">do-while driver</span>
+            <span class="chip">Scanner</span>
+            <span class="chip">return codes 0 / +n / −1 / −2</span>
+          </div>
+          <div class="cta">
+            <a class="btn btn-primary" href="#experiment">Run the simulator
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M3 8h9M8.5 4l4 4-4 4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </a>
+            <a class="btn btn-ghost" href="#source">Read the original source</a>
+          </div>
+          <div class="scrollcue"><span class="bar"></span>scroll to dissect</div>
+        </div>
+
+        <div class="hero-vis">
+          <div class="orbit" aria-hidden="true"></div>
+          <div class="verdict-card" id="verdictCard">
+            <div class="vc-head">
+              <span>returned value → branch</span>
+              <span style="color:#7fe7d4">count</span>
+            </div>
+            <div class="vrow p"><span class="k">count &gt; 0</span><span class="v">Hence, n is NOT a Prime no.</span><span class="dotmark"></span></div>
+            <div class="vrow c"><span class="k">count == 0</span><span class="v">n is a Prime no.</span><span class="dotmark"></span></div>
+            <div class="vrow one"><span class="k">count == −1</span><span class="v">1 is neither prime nor composite</span><span class="dotmark"></span></div>
+            <div class="vrow err"><span class="k">count == −2</span><span class="v">no branch matches → loop repeats</span><span class="dotmark"></span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= 01 OBJECTIVE ================= -->
+  <section class="section" id="objective">
+    <div class="wrap">
+      <div class="head reveal">
+        <div class="eyebrow"><b>01</b> Program objective</div>
+        <h2>What this program is actually trying to do</h2>
+        <p class="lead">The program reads one integer from the keyboard and answers a single question: is this number prime, composite, equal to one, or outside the range the implementation is willing to reason about? On the way to that answer it prints every divisor it finds, and it takes the final verdict from one integer returned by a helper method.</p>
+      </div>
+
+      <div class="grid g3">
+        <div class="card reveal" style="--d:0ms">
+          <h3><span class="tag">purpose</span></h3>
+          <p>Classify a number typed at run time. If the number is greater than one, the program reports each integer between 2 and <code class="inl">num − 1</code> that divides it evenly, then prints whether the number is prime. If the number is 1, it prints the special message. If the number is 0 or negative, the method prints an invalid-input notice instead of classifying.</p>
+          <p>The problem it solves is the classic primality check, but with a twist in how the answer travels: the method does not return a boolean. It returns the <strong>number of divisors</strong> it counted, and <code class="inl">main</code> interprets that quantity as a verdict.</p>
+        </div>
+
+        <div class="card reveal" style="--d:120ms">
+          <h3><span class="tag">learning</span></h3>
+          <p>Moving logic out of <code class="inl">main</code> into a static method that takes a parameter and returns a value — then letting that returned value drive an <code class="inl">if / else if</code> chain in the caller.</p>
+          <ul>
+            <li>parameter passing: <code class="inl">num</code> receives a copy of <code class="inl">n</code>;</li>
+            <li>return values and sentinel codes (<code class="inl">−1</code>, <code class="inl">−2</code>);</li>
+            <li>a <code class="inl">for</code> loop used as trial division with a counter;</li>
+            <li>a <code class="inl">do-while</code> loop that repeats until a task is marked “complete”;</li>
+            <li>reading console input with <code class="inl">Scanner</code>.</li>
+          </ul>
+        </div>
+
+        <div class="card reveal" style="--d:240ms">
+          <h3><span class="tag">behaviour</span></h3>
+          <p>Printed by <code class="inl">main</code>: <code class="inl">What's your number? </code> — then it blocks on input.</p>
+          <p>Printed by <code class="inl">isPrime</code>: one <code class="inl">i is a divisor</code> line per divisor found, or the two-line invalid-input notice.</p>
+          <p>Printed by <code class="inl">main</code> again: exactly one classification line for a valid number.</p>
+          <p>For 0 or a negative number the loop does <em>not</em> stop — the prompt reappears, because no branch in <code class="inl">main</code> handles the value <code class="inl">−2</code>.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= 02 PROBLEM STATEMENT ================= -->
+  <section class="section" id="problem">
+    <div class="wrap">
+      <div class="head reveal">
+        <div class="eyebrow"><b>02</b> Problem statement</div>
+        <h2>The task, stated without the code</h2>
+        <p class="lead">Read one decimal integer from standard input. Determine whether it is prime. Announce the divisors you used to decide. Then stop — but only if the number landed in one of the three cases the driver loop knows how to finish.</p>
+      </div>
+
+      <div class="grid g2" style="align-items:start">
+        <div class="card reveal">
+          <h3>Input, output, rules</h3>
+          <p><strong>Input.</strong> A single integer token typed at the prompt <code class="inl">What's your number? </code>. Each run of the loop consumes exactly one token, read with <code class="inl">sc.nextInt()</code>. Only a valid <code class="inl">int</code> is accepted: no decimals, no words, nothing outside −2,147,483,648 … 2,147,483,647.</p>
+          <p><strong>Output.</strong> For <code class="inl">num &gt; 1</code>: zero or more lines of the form <code class="inl">i is a divisor</code>, followed by one verdict line — either <code class="inl">n is a Prime no.</code> or <code class="inl">Hence, n is NOT a Prime no.</code>. For <code class="inl">num == 1</code>: the line <code class="inl">1 is neither prime nor composite</code>. For <code class="inl">num &lt; 1</code>: the notice <code class="inl">invalid input !</code>, the hint <code class="inl">CTRL+C to Exit</code>, a blank line, and then the prompt again.</p>
+          <p><strong>Rules.</strong> Trial division: for every <code class="inl">i</code> from 2 up to <code class="inl">num − 1</code>, if <code class="inl">num % i == 0</code> then print <code class="inl">i</code> and increment <code class="inl">count</code>. Return <code class="inl">count</code>. The caller decides: positive count means composite, zero means prime, <code class="inl">−1</code> means the number was 1, <code class="inl">−2</code> means the number was rejected.</p>
+          <p><strong>Constraints.</strong> All arithmetic stays inside <code class="inl">int</code>. The divisor scan is linear in <code class="inl">num</code>, so a large prime makes the program sit silently for a very long time. There is no <code class="inl">try / catch</code> around the input read.</p>
+        </div>
+
+        <div class="card reveal" style="--d:120ms">
+          <h3>The contract between the two methods</h3>
+          <div class="tablewrap tight" style="margin-top:6px">
+            <table>
+              <thead>
+                <tr><th class="mono">returned</th><th>meaning</th><th>main prints</th><th>loop</th></tr>
+              </thead>
+              <tbody>
+                <tr><td class="mono">&gt; 0</td><td>at least one divisor found</td><td class="mono">Hence, n is NOT a Prime no.</td><td><span class="pill ok">ends</span></td></tr>
+                <tr><td class="mono">0</td><td>no divisor found</td><td class="mono">n is a Prime no.</td><td><span class="pill ok">ends</span></td></tr>
+                <tr><td class="mono">−1</td><td>the number was 1</td><td class="mono">1 is neither prime nor composite</td><td><span class="pill ok">ends</span></td></tr>
+                <tr><td class="mono">−2</td><td>the number was 0 or negative</td><td class="mono">— (no branch)</td><td><span class="pill bad">repeats</span></td></tr>
+              </tbody>
+            </table>
+          </div>
+          <p class="src-note">The fourth row is the whole personality of this program. The method signals “invalid” with −2, but <code class="inl">main</code> only tests <code class="inl">== -1</code>, so the signal falls through and <code class="inl">completion</code> never increments.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= 03 CORE LOGIC ================= -->
+  <section class="section" id="logic">
+    <div class="wrap">
+      <div class="head reveal">
+        <div class="eyebrow"><b>03</b> Core logic &amp; approach</div>
+        <h2>Count first, decide later</h2>
+        <p class="lead">The main idea is to avoid returning a boolean and returning evidence instead. <code class="inl">isPrime</code> does not decide anything: it walks the candidate divisors, prints each one that divides evenly, and hands back how many it found. All interpretation happens in the caller.</p>
+      </div>
+
+      <div class="grid g2" style="align-items:start">
+        <div class="reveal">
+          <div class="flow">
+            <div class="fnode">
+              <div class="cond">1 · num == 1 ?</div>
+              <div class="act">Yes → <code class="inl">count = -1</code>, no printing, method returns immediately afterwards. This case is handled first, before any arithmetic.</div>
+            </div>
+            <div class="arrow">↓ no</div>
+            <div class="fnode bad">
+              <div class="cond">2 · num &lt; 1 ?</div>
+              <div class="act">Yes → print the invalid notice, <code class="inl">count = -2</code>. One test covers both 0 and every negative number.</div>
+            </div>
+            <div class="arrow">↓ no</div>
+            <div class="fnode key">
+              <div class="cond">3 · num &gt; 1 ?</div>
+              <div class="act">Yes → run the trial-division loop from <code class="inl">i = 2</code> while <code class="inl">i &lt; num</code>. Every <code class="inl">num % i == 0</code> prints a divisor line and increments <code class="inl">count</code>.</div>
+            </div>
+            <div class="arrow">↓</div>
+            <div class="fnode">
+              <div class="cond">return count</div>
+              <div class="act">The caller receives 0, a positive number, −1 or −2 — and that single integer carries the entire result.</div>
+            </div>
+          </div>
+          <p class="src-note">Because the three tests are an <code class="inl">if / else if / else if</code> chain, at most one of them can run, and the method always returns exactly one integer on every path.</p>
+        </div>
+
+        <div class="reveal" style="--d:120ms">
+          <h3 style="margin-bottom:12px">Why these steps work</h3>
+          <p>A number greater than one is prime exactly when nothing in the range 2 … num − 1 divides it. So an empty divisor list — <code class="inl">count == 0</code> — is a proof of primality, and any divisor at all is a proof of compositeness. The count itself is never needed for the verdict; only “zero or not” matters. It is used anyway, because it is already there and it makes the printed output self-explanatory.</p>
+          <p>The loop starts at <code class="inl">i = 2</code> because every integer is divisible by 1, which would be a useless hit. It stops at <code class="inl">i &lt; num</code> rather than <code class="inl">i &lt;= num</code> because every number divides itself; counting that would label every input composite. This strict inequality is also what lets 2 and 3 work without a special case: for <code class="inl">num = 2</code> the condition <code class="inl">2 &lt; 2</code> is false before the first iteration, so the loop body never runs and the count stays 0.</p>
+          <p>The three-way split in the method exists because the loop cannot describe numbers below 2. Zero is divisible by everything, and negatives behave oddly under Java's <code class="inl">%</code> operator, so the implementation refuses them outright and encodes the refusal as <code class="inl">−2</code> — a value the counting logic can never produce on its own, since a count is never negative.</p>
+          <p>Finally, the <code class="inl">do-while</code> in <code class="inl">main</code> runs the body before testing anything, so the prompt always appears at least once, and <code class="inl">completion</code> works as a one-shot latch: the first handled classification sets it to 1 and ends the loop.</p>
+          <div class="note">Only the <code class="inl">num &gt; 1</code> path can produce a <strong>positive</strong> count, only the not-composite case can produce a <strong>zero</strong>, and the two negatives are hand-written sentinels. The caller reverses this mapping to classify the input.</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= 04 CONCEPTS ================= -->
+  <section class="section" id="concepts">
+    <div class="wrap">
+      <div class="head reveal">
+        <div class="eyebrow"><b>04</b> Key Java concepts</div>
+        <h2>What the code is actually demonstrating</h2>
+        <p class="lead">Eight ideas are load-bearing here. Each card states what the concept does <em>in this program</em>, why it is used, and what to carry forward.</p>
+      </div>
+
+      <div class="grid g3">
+        <div class="card reveal">
+          <h3><span class="tag">static method</span></h3>
+          <p><code class="inl">isPrime</code> is declared <code class="inl">static</code>, so <code class="inl">main</code> — also static — calls it by name with no object in between. The method has no fields to remember: every call starts from <code class="inl">count = 0</code>.</p>
+          <p><strong>Why:</strong> the computation is a pure function of its argument, so an instance of <code class="inl">PrimeNo</code> would carry no information. <strong>Learn:</strong> static methods can only see static state; the whole result has to travel through parameters and the return value.</p>
+        </div>
+
+        <div class="card reveal" style="--d:80ms">
+          <h3><span class="tag">parameter</span></h3>
+          <p><code class="inl">n</code> in <code class="inl">main</code> is passed as an argument; <code class="inl">num</code> in the method receives a <em>copy</em> of that int. Nothing that happens to <code class="inl">num</code> inside could change <code class="inl">n</code>.</p>
+          <p><strong>Why:</strong> the caller keeps its own value for the final message (<code class="inl">"Hence, " + n</code>), while the method works with an identical number under a different name. <strong>Learn:</strong> Java is pass-by-value, always — even for objects, the value that is copied is the reference.</p>
+        </div>
+
+        <div class="card reveal" style="--d:160ms">
+          <h3><span class="tag">return value</span></h3>
+          <p>The method returns an <code class="inl">int</code>, not a <code class="inl">boolean</code>. That int is read in <code class="inl">main</code> as <code class="inl">int isPrime1 = isPrime(n);</code> and then tested three times.</p>
+          <p><strong>Why:</strong> a single int can encode more than two outcomes — the design needs four (prime, composite, one, invalid). <strong>Learn:</strong> the return type is a contract; here it is used as a small result code, which is compact but easy to misread.</p>
+        </div>
+
+        <div class="card reveal">
+          <h3><span class="tag">if / else if</span></h3>
+          <p>Two chains exist: one inside the method (three tests) and one inside <code class="inl">main</code> (three tests on the returned value). In both, once one condition is true the rest are skipped.</p>
+          <p><strong>Why:</strong> the cases are mutually exclusive by construction, so an exclusive chain matches the problem exactly. <strong>Learn:</strong> put the narrowest, most specific test first — here <code class="inl">num == 1</code> precedes the broader <code class="inl">num &lt; 1</code> for readability, though either order gives the same result.</p>
+        </div>
+
+        <div class="card reveal" style="--d:80ms">
+          <h3><span class="tag">for loop</span></h3>
+          <p><code class="inl">for (int i = 2; i &lt; num; i++)</code> is a bounded scan. The loop variable <code class="inl">i</code> exists only inside the loop; its final value after the loop ends is <code class="inl">num</code>.</p>
+          <p><strong>Why:</strong> trial division needs every candidate exactly once, in order. <strong>Learn:</strong> the condition is tested <em>before</em> each iteration, which is why a loop over <code class="inl">num = 2</code> performs zero iterations — the boundary case that a naive implementation often breaks.</p>
+        </div>
+
+        <div class="card reveal" style="--d:160ms">
+          <h3><span class="tag">do-while</span></h3>
+          <p><code class="inl">do { ... } while (completion &lt; 1);</code> runs the prompt-and-classify body first, then checks. The body cannot be skipped.</p>
+          <p><strong>Why:</strong> the program must ask at least once, and it may need to ask again after a rejected input. <strong>Learn:</strong> <code class="inl">completion</code> is the loop's exit condition, so <em>every</em> path that should finish must increment it — the reason the invalid path never terminates.</p>
+        </div>
+
+        <div class="card reveal">
+          <h3><span class="tag">Scanner</span></h3>
+          <p><code class="inl">new Scanner(System.in)</code> plus <code class="inl">sc.nextInt()</code> reads the next integer token, skipping whitespace. It throws <code class="inl">InputMismatchException</code> when the token is not a valid int.</p>
+          <p><strong>Why:</strong> the simplest way to get typed input in a console program. <strong>Learn:</strong> <code class="inl">hasNextInt()</code> exists precisely so you can test before you read; without it, one bad keystroke ends the program with a stack trace.</p>
+        </div>
+
+        <div class="card reveal" style="--d:80ms">
+          <h3><span class="tag">counter</span></h3>
+          <p><code class="inl">int count = 0;</code> accumulates with <code class="inl">count++</code> once per divisor. It is written to twice as a sentinel (<code class="inl">−1</code>, <code class="inl">−2</code>) before the loop ever runs.</p>
+          <p><strong>Why:</strong> one variable serves as accumulation buffer <em>and</em> as the method's output channel. <strong>Learn:</strong> reusing a counter for control codes works, but it removes the guarantee that the variable means one thing — a named constant or an enum would keep it honest.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section" id="experiment">
+    <div class="wrap">
+      <div class="head reveal">
+        <div class="eyebrow"><b>05</b> Interactive experimentation</div>
+        <h2>Run the program without leaving the page</h2>
+        <p class="lead">This simulator reproduces the submitted logic line for line: the same prompts, the same divisor lines, the same <code class="inl">−2</code> fall-through that leaves the loop running. Try a normal number, a boundary number, an invalid one, and something the program cannot parse.</p>
+      </div>
+
+      <div class="sim reveal">
+        <div>
+          <div class="term">
+            <div class="term-bar">
+              <div class="dots" aria-hidden="true"><i></i><i></i><i></i></div>
+              <div class="tt">PrimeNo — console</div>
+              <div class="live"><i></i>live simulation</div>
+            </div>
+            <div class="term-body" id="termBody" aria-live="polite"></div>
+            <form class="term-form" id="termForm" autocomplete="off">
+              <span class="pfx">›</span>
+              <input id="termInput" type="text" inputmode="numeric" placeholder="type an int and press Enter" aria-label="Input number" />
+              <button type="submit">send</button>
+            </form>
+          </div>
+
+          <div class="presets">
+            <button class="preset" data-v="7" type="button">7<small>prime</small></button>
+            <button class="preset" data-v="12" type="button">12<small>composite</small></button>
+            <button class="preset" data-v="2" type="button">2<small>boundary</small></button>
+            <button class="preset" data-v="4" type="button">4<small>one divisor</small></button>
+            <button class="preset" data-v="1" type="button">1<small>special</small></button>
+            <button class="preset" data-v="0" type="button">0<small>invalid</small></button>
+            <button class="preset" data-v="-5" type="button">−5<small>invalid</small></button>
+            <button class="preset" data-v="abc" type="button">abc<small>not an int</small></button>
+            <button class="preset ghost" id="resetTerm" type="button">↺ restart console</button>
+          </div>
+
+          <div class="grid g2" style="margin-top:calc(20px * var(--sp))">
+            <div class="card" style="padding:calc(18px * var(--sp))">
+              <h3 style="font-size:15px;margin-bottom:8px">Normal input — <span class="mono" style="color:#7fe7d4">12</span></h3>
+              <p style="font-size:13.8px">Four divisors are printed, then the composite verdict. Notice that the divisor lines come from inside the method and the verdict comes from <code class="inl">main</code> — two different authors in one transcript, and the ordering is fixed by the call.</p>
+            </div>
+            <div class="card" style="padding:calc(18px * var(--sp))">
+              <h3 style="font-size:15px;margin-bottom:8px">Boundary — <span class="mono" style="color:#7fe7d4">2</span></h3>
+              <p style="font-size:13.8px">The smallest prime. The loop condition <code class="inl">2 &lt; 2</code> is false immediately, so <code class="inl">i</code> is never compared inside the body, no divisor line appears, <code class="inl">count</code> stays 0, and the number is classified prime. No special case was needed.</p>
+            </div>
+            <div class="card" style="padding:calc(18px * var(--sp))">
+              <h3 style="font-size:15px;margin-bottom:8px">Invalid — <span class="mono" style="color:#ffc79b">0</span> and <span class="mono" style="color:#ffc79b">−5</span></h3>
+              <p style="font-size:13.8px">Both land in the <code class="inl">num &lt; 1</code> branch, print the two-line notice, and return <code class="inl">−2</code>. <code class="inl">main</code> has no branch for <code class="inl">−2</code>, so <code class="inl">completion</code> stays 0, the loop repeats, and the prompt returns. The transcript does not end — that is faithful behaviour, not a bug in the simulator.</p>
+            </div>
+            <div class="card" style="padding:calc(18px * var(--sp))">
+              <h3 style="font-size:15px;margin-bottom:8px">Limitation — <span class="mono" style="color:#ffc79b">abc</span></h3>
+              <p style="font-size:13.8px"><code class="inl">sc.nextInt()</code> can only parse an integer. Letters, decimals, or a number beyond the <code class="inl">int</code> range throw <code class="inl">InputMismatchException</code>. Nothing catches it, so the program dies with a stack trace and <code class="inl">sc.close()</code> never executes.</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="state">
+          <div class="stat"><span class="lab">last input · n</span><span class="val" id="stN">—</span></div>
+          <div class="stat"><span class="lab">returned value</span><span class="val hot" id="stRet">—</span></div>
+          <div class="stat"><span class="lab">divisors found</span><span class="val" id="stDiv">—</span></div>
+          <div class="stat"><span class="lab">completion</span><span class="val" id="stComp">0</span></div>
+          <div class="stat note-stat"><span class="lab">loop state</span><span class="val" id="stNote">waiting for your first number</span></div>
+          <div class="note" style="margin:0">
+            <b>Reading the panel.</b> <code class="inl">n</code>, the returned value and the divisor count are internal: the program never prints them. They are shown here so you can watch the mechanism behind the text.
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= 06 WALKTHROUGH ================= -->
+  <section class="section" id="walkthrough">
+    <div class="wrap">
+      <div class="head reveal">
+        <div class="eyebrow"><b>06</b> Step-by-step execution</div>
+        <h2>Trace it one instruction at a time</h2>
+        <p class="lead">Pick an input and step through the exact path the program takes: every condition, every loop iteration, and the moment <code class="inl">count</code> becomes the answer. The right panel shows the console as it looks at that instant.</p>
+      </div>
+
+      <div class="trace reveal">
+        <div class="trace-bar">
+          <label class="mono" for="traceCase" style="color:var(--dim);font-size:11.5px;letter-spacing:.14em;text-transform:uppercase">case</label>
+          <select id="traceCase">
+            <option value="12" selected>12 — composite</option>
+            <option value="7">7 — prime</option>
+            <option value="2">2 — smallest prime</option>
+            <option value="4">4 — exactly one divisor</option>
+            <option value="1">1 — special case</option>
+            <option value="0">0 — invalid</option>
+            <option value="-5">−5 — invalid</option>
+          </select>
+          <button class="tbtn" id="tPrev" type="button">◀ prev</button>
+          <button class="tbtn primary" id="tPlay" type="button">▶ play</button>
+          <button class="tbtn" id="tNext" type="button">next ▶</button>
+          <button class="tbtn" id="tReset" type="button">↺ reset</button>
+          <span class="trace-count" id="traceCount">step 1 / 1</span>
+        </div>
+
+        <div class="trace-grid">
+          <div class="now-card">
+            <div class="stepno" id="stepNo">step 1</div>
+            <h3 id="stepTitle">—</h3>
+            <p class="detail" id="stepDetail">—</p>
+            <div class="vars" id="stepVars"></div>
+          </div>
+          <div>
+            <div class="tc-head">console output so far</div>
+            <div class="tc-body" id="traceOut"></div>
+            <div class="stack">
+              <div class="sh"><span>call stack</span><b id="stackState">main running</b></div>
+              <div class="frame" id="frameMain"><span class="name">main(String[] args)</span><span class="meta">n · isPrime1 · completion</span></div>
+              <div class="frame" id="frameMethod"><span class="name">isPrime(int num)</span><span class="meta">num · count · i</span></div>
+            </div>
+            <div class="rail" id="traceRail"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= 07 OUTPUT ================= -->
+  <section class="section" id="output">
+    <div class="wrap">
+      <div class="head reveal">
+        <div class="eyebrow"><b>07</b> Output explanation</div>
+        <h2>Where every printed character comes from</h2>
+        <p class="lead">The transcript is a mix of three voices: <code class="inl">main</code> asking, <code class="inl">isPrime</code> reporting divisors, and <code class="inl">main</code> delivering the verdict. The order is fixed by the single call in the middle.</p>
+      </div>
+
+      <div class="grid g2" style="align-items:start">
+        <div class="reveal">
+          <div class="code">
+            <div class="cb"><span class="fname"><i></i>console — input 12</span><span class="mono" style="font-size:11px;color:#5c6880">composite</span></div>
+            <pre><span class="tok-k">What's your number? </span>
+<span class="tok-t">2 is a divisor</span>
+<span class="tok-t">3 is a divisor</span>
+<span class="tok-t">4 is a divisor</span>
+<span class="tok-t">6 is a divisor</span>
+<span class="tok-s">Hence, 12 is NOT a Prime no.</span></pre>
+          </div>
+          <ul style="margin-top:16px;font-size:14px">
+            <li><strong>Line 1</strong> is <code class="inl">println</code> in <code class="inl">main</code> — the trailing space before the newline is part of the string literal.</li>
+            <li><strong>Lines 2–5</strong> come from <code class="inl">System.out.print(i + " is a divisor\n")</code>. <code class="inl">print</code> does not move to a new line by itself; the explicit <code class="inl">\n</code> in the string supplies the line break.</li>
+            <li><strong>Line 6</strong> is <code class="inl">main</code>'s branch for <code class="inl">isPrime1 &gt; 0</code>. Here <code class="inl">isPrime1</code> is 4, then <code class="inl">completion</code> becomes 1 and the loop ends.</li>
+            <li>Divisors 5, 7, 8, 9, 10 and 11 leave no trace because <code class="inl">num % i != 0</code> — the print statement sits inside the <code class="inl">if</code>, not inside the loop body unconditionally.</li>
+          </ul>
+        </div>
+
+        <div class="reveal" style="--d:120ms">
+          <div class="code">
+            <div class="cb"><span class="fname"><i></i>console — input 7</span><span class="mono" style="font-size:11px;color:#5c6880">prime</span></div>
+            <pre><span class="tok-k">What's your number? </span>
+<span class="tok-s">7 is a Prime no.</span></pre>
+          </div>
+          <ul style="margin-top:16px;font-size:14px">
+            <li>The loop runs for <code class="inl">i = 2, 3, 4, 5, 6</code> — five iterations, five modulo tests, zero hits.</li>
+            <li>No divisor line is printed at all, so the only output after the prompt is the verdict. <strong>A prime's transcript is two lines; a composite's is two plus one line per divisor.</strong></li>
+            <li>Here <code class="inl">isPrime1</code> is 0, which matches the second branch, prints the message and increments <code class="inl">completion</code>.</li>
+          </ul>
+          <div class="note ok"><b>Output depends on input, not just on success.</b> The classification line is chosen by the value returned from the method — the same call site produces three different sentences, and a fourth case that produces none.</div>
+        </div>
+      </div>
+
+      <div class="grid g3" style="margin-top:calc(20px * var(--sp))">
+        <div class="card reveal">
+          <h3 style="font-size:15px">Input 1</h3>
+          <div class="code" style="font-size:12.5px"><pre>What's your number?
+1 is neither prime nor composite</pre></div>
+          <p style="font-size:13.5px;margin-top:12px">The <code class="inl">num == 1</code> branch sets <code class="inl">count = -1</code>, no loop runs, <code class="inl">main</code> matches the <code class="inl">== -1</code> test and prints a fixed sentence. The sentence contains a hard-coded “1”, so it would be wrong for any other value — but no other value can reach this branch.</p>
+        </div>
+        <div class="card reveal" style="--d:100ms">
+          <h3 style="font-size:15px">Input 0</h3>
+          <div class="code" style="font-size:12.5px"><pre>What's your number?
+invalid input ! 
+CTRL+C to Exit
+
+What's your number?</pre></div>
+          <p style="font-size:13.5px;margin-top:12px">The notice is printed, then a blank line (from the <code class="inl">\n</code> at the end of the literal, plus <code class="inl">println</code>'s own newline). Then the loop restarts and the prompt returns. No verdict is ever printed for 0.</p>
+        </div>
+        <div class="card reveal" style="--d:200ms">
+          <h3 style="font-size:15px">Input 4</h3>
+          <div class="code" style="font-size:12.5px"><pre>What's your number?
+2 is a divisor
+Hence, 4 is NOT a Prime no.</pre></div>
+          <p style="font-size:13.5px;margin-top:12px"><code class="inl">count</code> is 1 here — a single divisor is enough. The verdict only asks whether the return value is positive, so one divisor and a hundred divisors produce exactly the same sentence.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= 08 EDGE CASES ================= -->
+  <section class="section" id="edges">
+    <div class="wrap">
+      <div class="head reveal">
+        <div class="eyebrow"><b>08</b> Edge cases, correctness &amp; limitations</div>
+        <h2>What the implementation does — and what it does not</h2>
+        <p class="lead">The classification logic is sound for every number it accepts. The driver loop and the input handling are where the program stops being robust. Both statements are about the submitted code as written.</p>
+      </div>
+
+      <div class="tablewrap reveal">
+        <table>
+          <thead>
+            <tr><th class="mono">input</th><th>path taken</th><th>returned</th><th>printed</th><th>verdict</th></tr>
+          </thead>
+          <tbody>
+            <tr><td class="mono">2</td><td>loop guard fails immediately</td><td class="mono">0</td><td class="mono">2 is a Prime no.</td><td><span class="pill ok">correct</span></td></tr>
+            <tr><td class="mono">3</td><td>one iteration, no hit</td><td class="mono">0</td><td class="mono">3 is a Prime no.</td><td><span class="pill ok">correct</span></td></tr>
+            <tr><td class="mono">4</td><td>hit at i = 2</td><td class="mono">1</td><td class="mono">2 is a divisor + NOT prime</td><td><span class="pill ok">correct</span></td></tr>
+            <tr><td class="mono">9</td><td>hit at i = 3 only</td><td class="mono">1</td><td class="mono">3 is a divisor + NOT prime</td><td><span class="pill ok">correct</span></td></tr>
+            <tr><td class="mono">1</td><td>first branch</td><td class="mono">−1</td><td class="mono">neither prime nor composite</td><td><span class="pill neu">intended</span></td></tr>
+            <tr><td class="mono">0</td><td>second branch</td><td class="mono">−2</td><td class="mono">invalid notice, then prompt again</td><td><span class="pill bad">loops forever</span></td></tr>
+            <tr><td class="mono">−5</td><td>second branch</td><td class="mono">−2</td><td class="mono">invalid notice, then prompt again</td><td><span class="pill bad">loops forever</span></td></tr>
+            <tr><td class="mono">2.5</td><td><code class="inl">nextInt()</code> throws</td><td class="mono">—</td><td class="mono">InputMismatchException</td><td><span class="pill bad">crash</span></td></tr>
+            <tr><td class="mono">2147483648</td><td>outside int range</td><td class="mono">—</td><td class="mono">InputMismatchException</td><td><span class="pill bad">crash</span></td></tr>
+            <tr><td class="mono">1000003</td><td>full scan, no hit</td><td class="mono">0</td><td class="mono">prime, after ~10⁶ tests</td><td><span class="pill vio">slow but correct</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="grid g2" style="margin-top:calc(20px * var(--sp));align-items:start">
+        <div class="card reveal">
+          <h3>Limitations in this implementation</h3>
+          <ul style="font-size:14.2px">
+            <li><strong>The <code class="inl">−2</code> signal is never handled.</strong> <code class="inl">main</code> tests <code class="inl">&gt; 0</code>, <code class="inl">== 0</code> and <code class="inl">== -1</code>; the fourth possible return value matches nothing, so the invalid path cannot end the loop. The message says “CTRL+C to Exit” because that is, literally, the only exit from this state.</li>
+            <li><strong>No input validation before parsing.</strong> A letter, a decimal or an out-of-range integer makes <code class="inl">sc.nextInt()</code> throw. There is no <code class="inl">hasNextInt()</code> guard and no <code class="inl">try / catch</code>, so the program terminates with a stack trace.</li>
+            <li><strong>The loop is linear in the input value.</strong> A large prime such as 2,147,483,647 would require about 2.1 billion modulo operations — indistinguishable from a hang.</li>
+            <li><strong>Names and messages disagree with behaviour.</strong> A method called <code class="inl">isPrime</code> returns a divisor count, not a boolean; the variable holding it is called <code class="inl">isPrime1</code> but holds an int; the message “invalid input” is printed by the helper, not by the driver.</li>
+            <li><strong><code class="inl">sc.close()</code> is unreachable on the invalid path,</strong> and the sentinel values <code class="inl">−1</code>/<code class="inl">−2</code> are magic numbers duplicated in two methods with nothing tying them together.</li>
+            <li><strong>The <code class="inl">num &lt; 1</code> branch is load-bearing.</strong> Without it, 0 and negatives would fall into the loop path: the loop would not execute, <code class="inl">count</code> would stay 0, and every negative number would be announced as prime. Java's <code class="inl">%</code> keeps the sign of the dividend, so a negative input can never produce a zero remainder here anyway.</li>
+          </ul>
+        </div>
+
+        <div class="reveal" style="--d:120ms">
+          <h3>Correctness, stated carefully</h3>
+          <p><strong>For every <code class="inl">num ≥ 2</code>: correct.</strong> The scan covers all of 2 … num − 1, so <code class="inl">count == 0</code> holds exactly when the number has no proper divisor, which is the definition of prime. There is no overflow in <code class="inl">%</code>, and the loop bound is strict, so no off-by-one exists at either end.</p>
+          <p><strong>For <code class="inl">num == 1</code>: correct by special case.</strong> One is neither prime nor composite, and the program says so — but it says so with a branch that exists only to avoid a wrong answer, not because the loop could handle it.</p>
+          <p><strong>For <code class="inl">num &lt; 1</code>: not handled.</strong> The message is printed, but the program neither classifies the number nor exits. Whether this counts as a bug depends on intent: if the intent was “reject and stop”, the code is incomplete. If the intent was “reject and ask again”, the <code class="inl">−2</code> should have incremented <code class="inl">completion</code> — and then it would stop after one rejection, which is also probably not what was wanted. The right fix is a separate decision in <code class="inl">main</code> that distinguishes “retry” from “exit”.</p>
+          <div class="note warn"><b>Not modified.</b> The code shown in section 11 is exactly what was submitted. Everything above is analysis of that code, not a replacement for it.</div>
+          <p style="margin-top:14px"><strong>What an ideal solution would do differently:</strong> return <code class="inl">boolean</code> for primality and handle “one” and “invalid” in the caller; stop the scan at <code class="inl">i * i &lt;= num</code>; guard input with <code class="inl">hasNextInt()</code>; and make the loop's exit condition depend on an explicit <code class="inl">finished</code> flag that every terminating path sets.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= 09 COMPLEXITY ================= -->
+  <section class="section" id="complexity">
+    <div class="wrap">
+      <div class="head reveal">
+        <div class="eyebrow"><b>09</b> Time &amp; space complexity</div>
+        <h2>Linear work, constant memory</h2>
+        <p class="lead">One call to <code class="inl">isPrime(n)</code> with <code class="inl">n &gt; 1</code> performs exactly <code class="inl">n − 2</code> loop iterations. Each iteration does one modulo and one comparison, both constant-time for <code class="inl">int</code>.</p>
+      </div>
+
+      <div class="grid g2" style="align-items:start">
+        <div class="card reveal">
+          <h3>Time — <span class="mono" style="color:#7fe7d4">Θ(n)</span></h3>
+          <p>The loop bound is the input value itself: <code class="inl">for (int i = 2; i &lt; num; i++)</code>. Nothing shortens it — for a prime, every single candidate is tested and rejected. So the running time grows in direct proportion to the number typed, not to the number of digits in it.</p>
+          <p>That distinction matters. A 7-digit input can mean a billion iterations: doubling the value doubles the work, and adding one digit multiplies it by ten. For <code class="inl">n ≤ 1</code> the cost is Θ(1) because no loop runs at all.</p>
+          <div class="bars" id="barChart" style="margin-top:18px">
+            <div class="barrow"><span>10</span><div class="bartrack"><div class="barfill" data-w="2"></div></div><span class="ops">8 tests</span></div>
+            <div class="barrow"><span>100</span><div class="bartrack"><div class="barfill" data-w="6"></div></div><span class="ops">98 tests</span></div>
+            <div class="barrow"><span>1,000</span><div class="bartrack"><div class="barfill" data-w="16"></div></div><span class="ops">998 tests</span></div>
+            <div class="barrow"><span>100,000</span><div class="bartrack"><div class="barfill" data-w="42"></div></div><span class="ops">99,998 tests</span></div>
+            <div class="barrow"><span>1,000,000</span><div class="bartrack"><div class="barfill" data-w="78"></div></div><span class="ops">~10⁶ tests</span></div>
+            <div class="barrow"><span>2³¹−1</span><div class="bartrack"><div class="barfill" data-w="100"></div></div><span class="ops">~2.1×10⁹</span></div>
+          </div>
+        </div>
+
+        <div class="reveal" style="--d:120ms">
+          <h3>Space — <span class="mono" style="color:#7fe7d4">Θ(1)</span></h3>
+          <p>Auxiliary space does not grow with the input. The method allocates one <code class="inl">int count</code> and one <code class="inl">int i</code>; <code class="inl">main</code> holds <code class="inl">completion</code>, <code class="inl">n</code> and <code class="inl">isPrime1</code>. The <code class="inl">Scanner</code> wraps a buffered input stream whose buffer is a fixed size, not a function of <code class="inl">n</code>. Nothing is stored per divisor — each divisor is printed and forgotten, which is exactly why the count only survives as a number.</p>
+          <h3 style="margin-top:22px">Does the analysis change anything?</h3>
+          <p>Only the loop's upper bound matters. Since factors come in pairs, testing up to <code class="inl">i * i &lt;= num</code> is enough: if <code class="inl">num</code> has a divisor greater than its square root, it must have one smaller too. That single change moves the cost from Θ(n) to Θ(√n) — for <code class="inl">num = 10⁶</code>, from about a million tests to a thousand.</p>
+          <p class="src-note">The submitted code does not do this; it scans the full range. For small practice inputs the difference is invisible, which is why the limitation is easy to miss.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= 10 TAKEAWAYS ================= -->
+  <section class="section" id="takeaways">
+    <div class="wrap">
+      <div class="head reveal">
+        <div class="eyebrow"><b>10</b> Takeaways &amp; future connections</div>
+        <h2>What this program teaches</h2>
+      </div>
+
+      <div class="grid g3">
+        <div class="card reveal">
+          <h3><span class="tag">lesson</span></h3>
+          <p>A method's return value is the whole conversation between it and its caller. <code class="inl">isPrime</code> never prints a verdict and <code class="inl">main</code> never computes a divisor — yet together they classify the number. Once you see the return value as a signal, you can predict the transcript before running it: positive → composite, zero → prime, −1 → one, −2 → silence.</p>
+        </div>
+        <div class="card reveal" style="--d:100ms">
+          <h3><span class="tag">mistakes to avoid</span></h3>
+          <ul style="font-size:14.2px">
+            <li>Encoding several outcomes in magic ints with no named constants — one forgotten case and the loop never ends.</li>
+            <li>Forgetting that a <code class="inl">do-while</code> exits only when its condition changes; an unhandled branch means an unhandled loop.</li>
+            <li>Reading input with <code class="inl">nextInt()</code> without checking <code class="inl">hasNextInt()</code>.</li>
+            <li>Naming a method for the answer it sometimes gives instead of what it returns.</li>
+            <li>Assuming “it compiled and worked for 7 and 12” means the program handles all input.</li>
+          </ul>
+        </div>
+        <div class="card reveal" style="--d:200ms">
+          <h3><span class="tag">remember</span></h3>
+          <p>Draw the contract before writing the caller: for each value the method can return, what should <code class="inl">main</code> do? If a value can escape without a decision, that is a hole in the design, not a detail to patch later.</p>
+          <p>And keep the boundary thinking: <code class="inl">i &lt; num</code> versus <code class="inl">i &lt;= num</code> is the difference between a prime checker and a program that calls everything composite.</p>
+        </div>
+      </div>
+
+      <div class="grid g2" style="margin-top:calc(18px * var(--sp));align-items:start">
+        <div class="challenge reveal">
+          <h3>Check your understanding</h3>
+          <p style="color:#c6d1ec;margin-bottom:6px">For input <code class="inl">9</code>: how many divisor lines appear, what does <code class="inl">isPrime(9)</code> return, and which branch in <code class="inl">main</code> runs?</p>
+          <button class="tbtn reveal-btn" id="chal1" type="button">show answer</button>
+          <div class="answer" id="ans1">One line — <code class="inl">3 is a divisor</code> — because the only integer in 2…8 that divides 9 is 3 (9 itself is excluded by <code class="inl">i &lt; num</code>). <code class="inl">count</code> becomes 1, so <code class="inl">isPrime</code> returns <code class="inl">1</code>, and <code class="inl">main</code> takes the first branch <code class="inl">isPrime1 &gt; 0</code>: it prints <code class="inl">Hence, 9 is NOT a Prime no.</code> and sets <code class="inl">completion = 1</code>, ending the loop.</div>
+        </div>
+
+        <div class="challenge reveal" style="--d:120ms">
+          <h3>One more</h3>
+          <p style="color:#c6d1ec;margin-bottom:6px">Why does entering <code class="inl">0</code> leave the prompt on screen instead of ending the program?</p>
+          <button class="tbtn reveal-btn" id="chal2" type="button">show answer</button>
+          <div class="answer" id="ans2">Because <code class="inl">isPrime(0)</code> returns <code class="inl">−2</code>, and <code class="inl">main</code> only checks <code class="inl">&gt; 0</code>, <code class="inl">== 0</code> and <code class="inl">== −1</code>. No branch matches, so <code class="inl">completion</code> is never incremented; the condition <code class="inl">completion &lt; 1</code> stays true and the <code class="inl">do-while</code> starts another pass, printing the prompt again. The only escape is Ctrl+C or entering a number the program knows how to finish.</div>
+        </div>
+      </div>
+
+      <div class="card reveal" style="margin-top:calc(18px * var(--sp))">
+        <h3><span class="tag">later</span></h3>
+        <p>Primality testing is the doorway to a whole family of algorithms you will meet again: the √n optimisation is the first step towards sieve-based methods, and the same “check for a witness, stop early” pattern reappears in searching, factoring and cryptography. The return-code idea also grows into real Java types — <code class="inl">boolean</code>, <code class="inl">enum</code>, <code class="inl">Optional</code>, and exceptions — each of which is a more explicit way of saying what this program says with <code class="inl">0</code>, <code class="inl">−1</code> and <code class="inl">−2</code>.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= 11 SOURCE ================= -->
+  <section class="section" id="source">
+    <div class="wrap">
+      <div class="head reveal">
+        <div class="eyebrow"><b>11</b> Your original Java source</div>
+        <h2>PrimeNo.java — verbatim</h2>
+        <p class="lead">Reproduced exactly as submitted, including the comment and the unhandled <code class="inl">−2</code> path. Nothing on this page has altered it.</p>
+      </div>
+
+      <div class="src-wrap reveal">
+        <div class="code" id="srcCode">
+          <div class="cb">
+            <span class="fname"><i></i>PrimeNo.java</span>
+            <button class="copy-btn" id="copySrc" type="button">copy source</button>
+          </div>
+          <pre id="srcPre">import java.util.Scanner;
+
+public class PrimeNo {
+
+    public static int isPrime(int num) {
+        int count = 0;
+
+        if (num == 1) {
+            count = -1;
+        } else if (num &lt; 1) {
+            System.out.println("invalid input ! \nCTRL+C to Exit\n");
+            count = -2;
+        }
+
+        // only for n&gt;1
+        else if (num &gt; 1) {
+            for (int i = 2; i &lt; num; i++) {
+                if (num % i == 0) {
+                    System.out.print(i + " is a divisor\n");
+                    count++;
+                }
+            }
+        }
+        return count;
+    }
+
+    public static void main(String[] args) {
+        Scanner sc = new Scanner(System.in);
+        int completion = 0;
+
+        do {
+            System.out.println("What's your number? ");
+            int n = sc.nextInt();
+            int isPrime1 = isPrime(n);
+            if (isPrime1 &gt; 0) {
+                System.out.println("Hence, " + n + " is NOT a Prime no.");
+                completion++;
+            } else if (isPrime1 == 0) {
+                System.out.println(n + " is a Prime no.");
+                completion++;
+            } else if (isPrime1 == -1) {
+                System.out.println("1 is neither prime nor composite");
+                completion++;
+            }
+
+        } while (completion &lt; 1);
+        sc.close();
+    }
+}</pre>
+        </div>
+        <p class="src-note">Copying yields the plain source, without line numbers or colouring.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= 12 NEXT ================= -->
+  <section class="section" id="next">
+    <div class="wrap">
+      <div class="head reveal">
+        <div class="eyebrow"><b>12</b> Next learning step</div>
+        <h2>Where this leads</h2>
+      </div>
+      <div class="grid g2" style="align-items:start">
+        <div class="card reveal">
+          <h3>Direction, not yet a destination</h3>
+          <p>The obvious continuation is to keep everything this program already does and change only how the answer travels: return a <code class="inl">boolean</code> from the checker, keep <code class="inl">1</code> and the invalid case in the caller, and give the driver loop an explicit <code class="inl">finished</code> flag so every path can end it. Same behaviour, cleaner contract — a natural way to practise method design without learning a new topic.</p>
+          <p>The other direction is the loop bound: stopping at <code class="inl">i * i &lt;= num</code> and comparing the iteration counts against this version.</p>
+          <p class="src-note"><strong>Not confirmed.</strong> No specific next program has been chosen for your sequence yet — both options build directly on static methods, parameters, return values and conditional logic, and either can be picked once your course order is settled.</p>
+        </div>
+        <div class="card reveal" style="--d:120ms">
+          <h3>What carries forward</h3>
+          <ul>
+            <li><strong>Method contracts</strong> — every value a method can return needs a decision at the call site.</li>
+            <li><strong>Loop exit conditions</strong> — a <code class="inl">do-while</code> is only as safe as the set of paths that mutate its condition.</li>
+            <li><strong>Input robustness</strong> — <code class="inl">hasNextInt()</code> before <code class="inl">nextInt()</code> is a habit worth forming now.</li>
+            <li><strong>Boundary arithmetic</strong> — strict versus inclusive comparisons decide whether 2 is prime.</li>
+            <li><strong>Cost awareness</strong> — trial division is Θ(n); every later prime algorithm is measured against it.</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<footer>
+  <div class="wrap foot-in">
+    <p>PrimeNo.java — dissected from the submitted source. Behaviour described here matches the code as written.</p>
+    <p class="mono">static · int · for · do-while · Scanner</p>
+  </div>
+</footer>
+
+<div class="dock" id="dock">
+  <div class="dock-panel" id="dockPanel">
+    <div class="grp">
+      <span class="glab">balance</span>
+      <div class="seg" id="segDensity">
+        <button data-density="comfort" type="button">comfort</button>
+        <button data-density="balanced" class="on" type="button">balanced</button>
+        <button data-density="compact" type="button">compact</button>
+      </div>
+    </div>
+    <div class="grp">
+      <span class="glab">glow</span>
+      <div class="seg" id="segGlow">
+        <button data-glow="low" type="button">low</button>
+        <button data-glow="medium" class="on" type="button">soft</button>
+        <button data-glow="high" type="button">high</button>
+      </div>
+    </div>
+  </div>
+  <button class="dock-toggle" id="dockToggle" type="button" aria-expanded="false" aria-controls="dockPanel">
+    <span class="g"></span>
+    <span id="dockCur">balanced · soft</span>
+    <svg class="chev" width="11" height="11" viewBox="0 0 12 12" fill="none" aria-hidden="true"><path d="M2.5 8L6 4.5 9.5 8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+  </button>
+</div>
+
+<script>
+(function(){
+  "use strict";
+
+  /* ---------- scroll reveal ---------- */
+  var revealEls = document.querySelectorAll('.reveal');
+  if ('IntersectionObserver' in window) {
+    var io = new IntersectionObserver(function(entries){
+      entries.forEach(function(e){
+        if (e.isIntersecting) { e.target.classList.add('in'); io.unobserve(e.target); }
+      });
+    }, { rootMargin: '0px 0px -8% 0px', threshold: 0.08 });
+    revealEls.forEach(function(el){ io.observe(el); });
+  } else {
+    revealEls.forEach(function(el){ el.classList.add('in'); });
+  }
+
+  /* ---------- progress + active nav ---------- */
+  var progress = document.getElementById('progress');
+  var navLinks = Array.prototype.slice.call(document.querySelectorAll('.nav-links a'));
+  var sections = navLinks.map(function(a){ return document.querySelector(a.getAttribute('href')); });
+
+  function onScroll(){
+    var h = document.documentElement;
+    var max = (h.scrollHeight - h.clientHeight) || 1;
+    var p = Math.min(1, Math.max(0, h.scrollTop / max));
+    progress.style.transform = 'scaleX(' + p + ')';
+
+    var idx = -1;
+    for (var i = 0; i < sections.length; i++) {
+      var s = sections[i];
+      if (s && s.getBoundingClientRect().top <= 140) idx = i;
+    }
+    navLinks.forEach(function(a, i){ a.classList.toggle('active', i === idx); });
+  }
+  window.addEventListener('scroll', onScroll, { passive: true });
+  onScroll();
+
+  /* ---------- hero tilt ---------- */
+  var vc = document.getElementById('verdictCard');
+  var reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  if (vc && !reduce && window.matchMedia('(hover: hover)').matches) {
+    var host = vc.parentElement;
+    host.addEventListener('mousemove', function(ev){
+      var r = host.getBoundingClientRect();
+      var x = (ev.clientX - r.left) / r.width - 0.5;
+      var y = (ev.clientY - r.top) / r.height - 0.5;
+      vc.style.transform = 'rotateY(' + (x * 7).toFixed(2) + 'deg) rotateX(' + (-y * 7).toFixed(2) + 'deg) translateZ(12px)';
+    });
+    host.addEventListener('mouseleave', function(){ vc.style.transform = ''; });
+  }
+
+  /* ---------- balance / glow dock ---------- */
+  var dockCur = document.getElementById('dockCur');
+
+  function syncDockLabel(){
+    if (!dockCur) return;
+    var d = document.querySelector('#segDensity button.on');
+    var g = document.querySelector('#segGlow button.on');
+    dockCur.textContent = (d ? d.textContent : 'balanced') + ' · ' + (g ? g.textContent : 'soft');
+  }
+
+  function bindSeg(id, attr, root){
+    var box = document.getElementById(id);
+    if (!box) return;
+    box.addEventListener('click', function(ev){
+      var b = ev.target.closest('button');
+      if (!b) return;
+      box.querySelectorAll('button').forEach(function(x){ x.classList.remove('on'); });
+      b.classList.add('on');
+      root.setAttribute('data-' + attr, b.getAttribute('data-' + attr));
+      syncDockLabel();
+    });
+  }
+  bindSeg('segDensity', 'density', document.documentElement);
+  bindSeg('segGlow', 'glow', document.documentElement);
+  syncDockLabel();
+
+  /* ---------- challenge reveals ---------- */
+  [['chal1','ans1'],['chal2','ans2']].forEach(function(pair){
+    var btn = document.getElementById(pair[0]), ans = document.getElementById(pair[1]);
+    if (!btn || !ans) return;
+    btn.addEventListener('click', function(){
+      var open = ans.classList.toggle('open');
+      btn.textContent = open ? 'hide answer' : 'show answer';
+    });
+  });
+
+  /* ---------- complexity bars ---------- */
+  var chart = document.getElementById('barChart');
+  if (chart && 'IntersectionObserver' in window) {
+    var bo = new IntersectionObserver(function(es){
+      es.forEach(function(e){
+        if (!e.isIntersecting) return;
+        chart.querySelectorAll('.barfill').forEach(function(f, i){
+          setTimeout(function(){ f.style.width = f.getAttribute('data-w') + '%'; }, i * 90);
+        });
+        bo.disconnect();
+      });
+    }, { threshold: 0.4 });
+    bo.observe(chart);
+  }
+
+  /* ---------- copy source ---------- */
+  var srcPre = document.getElementById('srcPre');
+  var copyBtn = document.getElementById('copySrc');
+  var rawSource = srcPre ? srcPre.textContent : '';
+
+  copyBtn.addEventListener('click', function(){
+    var done = function(){
+      copyBtn.textContent = 'copied ✓';
+      copyBtn.classList.add('ok');
+      setTimeout(function(){ copyBtn.textContent = 'copy source'; copyBtn.classList.remove('ok'); }, 1900);
+    };
+    var fail = function(){
+      copyBtn.textContent = 'select + ctrl C';
+      try {
+        var rng = document.createRange();
+        rng.selectNodeContents(srcPre);
+        var sel = window.getSelection();
+        sel.removeAllRanges(); sel.addRange(rng);
+      } catch(e){}
+      setTimeout(function(){ copyBtn.textContent = 'copy source'; }, 2400);
+    };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(rawSource).then(done).catch(fail);
+    } else {
+      try {
+        var ta = document.createElement('textarea');
+        ta.value = rawSource;
+        ta.style.position = 'fixed'; ta.style.opacity = '0';
+        document.body.appendChild(ta); ta.select();
+        var ok = document.execCommand('copy');
+        document.body.removeChild(ta);
+        ok ? done() : fail();
+      } catch(e){ fail(); }
+    }
+  });
+
+  /* =========================================================
+     FAITHFUL SIMULATOR
+     ========================================================= */
+  var body = document.getElementById('termBody');
+  var form = document.getElementById('termForm');
+  var input = document.getElementById('termInput');
+  var stN = document.getElementById('stN');
+  var stRet = document.getElementById('stRet');
+  var stDiv = document.getElementById('stDiv');
+  var stComp = document.getElementById('stComp');
+  var stNote = document.getElementById('stNote');
+
+  var session = { completion: 0, done: false, started: false };
+  var lastPrompt = null;
+
+  function scrollTerm(){ body.scrollTop = body.scrollHeight; }
+
+  function addLine(text, cls){
+    var d = document.createElement('div');
+    d.className = 'l ' + cls;
+    d.textContent = text;
+    body.appendChild(d);
+    scrollTerm();
+    return d;
+  }
+
+  function addPrompt(){
+    var d = document.createElement('div');
+    d.className = 'l l-prompt';
+    var s = document.createElement('span');
+    s.textContent = "What's your number? ";
+    d.appendChild(s);
+    var c = document.createElement('span');
+    c.className = 'caret';
+    d.appendChild(c);
+    body.appendChild(d);
+    lastPrompt = d;
+    scrollTerm();
+  }
+
+  function killCaret(){
+    if (lastPrompt) {
+      var c = lastPrompt.querySelector('.caret');
+      if (c) c.remove();
+      lastPrompt = null;
+    }
+  }
+
+  function separator(){
+    addLine('— new run —', 'l-sep');
+  }
+
+  function resetConsole(){
+    body.innerHTML = '';
+    session = { completion: 0, done: false, started: false };
+    lastPrompt = null;
+    addPrompt();
+    stN.textContent = '—';
+    stRet.textContent = '—';
+    stDiv.textContent = '—';
+    stComp.textContent = '0';
+    stNote.textContent = 'waiting for your first number';
+  }
+
+  function updateState(n, ret, divs, note){
+    stN.textContent = String(n);
+    stRet.textContent = String(ret);
+    stRet.className = 'val ' + (ret > 0 ? '' : 'hot');
+    stDiv.textContent = String(divs);
+    stComp.textContent = String(session.completion);
+    stNote.textContent = note;
+  }
+
+  var INT_MIN = -2147483648, INT_MAX = 2147483647;
+
+  function submit(raw){
+    var val = String(raw).trim();
+    if (val === '') return;
+
+    if (session.done) {
+      separator();
+      session = { completion: 0, done: false, started: true };
+    }
+    killCaret();
+    addLine(val, 'l-in');
+
+    var isInt = /^[+-]?\d+$/.test(val);
+    var num = isInt ? Number(val) : NaN;
+    if (isInt && (num > INT_MAX || num < INT_MIN)) isInt = false;
+
+    if (!isInt) {
+      addLine('Exception in thread "main" java.util.InputMismatchException', 'l-err');
+      addLine('        at java.base/java.util.Scanner.throwFor(Scanner.java:939)', 'l-err');
+      addLine('        at java.base/java.util.Scanner.next(Scanner.java:1594)', 'l-err');
+      addLine('        at java.base/java.util.Scanner.nextInt(Scanner.java:2255)', 'l-err');
+      addLine('        at PrimeNo.main(PrimeNo.java:31)', 'l-err');
+      addLine('// no try/catch: the program ends here and sc.close() never runs', 'l-note');
+      session.done = true;
+      updateState(val, '—', '—', 'the program died inside sc.nextInt(); nothing was classified');
+      return;
+    }
+
+    /* ---- isPrime(num), reproduced exactly ---- */
+    var ret, divs = 0, invalid = false;
+
+    if (num === 1) {
+      ret = -1;
+    } else if (num < 1) {
+      addLine('invalid input ! ', 'l-err');
+      addLine('CTRL+C to Exit', 'l-err');
+      addLine('', 'l-err');
+      invalid = true;
+      ret = -2;
+    } else {
+      for (var i = 2; i < num; i++) {
+        if (num % i === 0) {
+          addLine(i + ' is a divisor', 'l-div');
+          divs++;
+        }
+      }
+      ret = divs;
+    }
+
+    /* ---- main() classifying the returned value ---- */
+    if (ret > 0) {
+      addLine('Hence, ' + num + ' is NOT a Prime no.', 'l-res');
+      session.completion++;
+    } else if (ret === 0) {
+      addLine(num + ' is a Prime no.', 'l-res');
+      session.completion++;
+    } else if (ret === -1) {
+      addLine('1 is neither prime nor composite', 'l-res');
+      session.completion++;
+    }
+    /* ret === -2 falls through every branch on purpose */
+
+    if (session.completion >= 1) {
+      session.done = true;
+      updateState(num, ret, divs, 'completion = 1 → while (1 < 1) is false → loop ends, Scanner closed');
+    } else {
+      updateState(num, ret, divs, 'completion is still 0 → while (0 < 1) is true → the prompt returns');
+      addPrompt();
+    }
+  }
+
+  form.addEventListener('submit', function(ev){
+    ev.preventDefault();
+    var v = input.value;
+    input.value = '';
+    submit(v);
+    input.focus();
+  });
+
+  document.querySelectorAll('.preset[data-v]').forEach(function(p){
+    p.addEventListener('click', function(){
+      submit(p.getAttribute('data-v'));
+      input.focus();
+    });
+  });
+
+  document.getElementById('resetTerm').addEventListener('click', function(){
+    resetConsole();
+    input.focus();
+  });
+
+  resetConsole();
+
+  /* =========================================================
+     TRACE ENGINE
+     ========================================================= */
+  function traceFor(n){
+    var steps = [], out = [];
+    var v = { n: '—', num: '—', i: '—', count: '—', ret: '—', completion: '0' };
+    var frame = 'main';
+
+    function add(title, detail, lines){
+      if (lines && lines.length) out = out.concat(lines);
+      steps.push({ title: title, detail: detail, vars: Object.assign({}, v), out: out.slice(), frame: frame });
+    }
+
+    add('main() begins',
+      'A Scanner is created for System.in and completion is set to 0. Because this is a do-while, the body runs before the condition is ever tested.');
+
+    add('Prompt printed',
+      'System.out.println("What\'s your number? ") writes the prompt followed by a newline, then the program blocks on input.',
+      ["What's your number? "]);
+
+    v.n = String(n);
+    add('sc.nextInt() returns ' + n,
+      'The typed token is parsed as an int and stored in n. This is the only input the loop consumes.');
+
+    v.num = String(n);
+    v.count = '0';
+    frame = 'isPrime';
+    add('isPrime(' + n + ') is called',
+      'Control jumps into the static method. The parameter num receives a copy of n and the local counter count starts at 0.');
+
+    var ret;
+
+    if (n === 1) {
+      v.count = '-1';
+      add('num == 1 → true',
+        'The first test matches, so the rest of the chain is skipped. count is set to the sentinel −1 and no loop runs.');
+      ret = -1;
+    } else if (n < 1) {
+      add('num == 1 → false', 'The chain moves to the next test.');
+      v.count = '-2';
+      add('num < 1 → true',
+        'Zero and every negative number land here. The two-line notice is printed and count is set to the sentinel −2.',
+        ['invalid input ! ', 'CTRL+C to Exit', '']);
+      ret = -2;
+    } else {
+      add('num == 1 → false', 'The chain moves to the next test.');
+      add('num < 1 → false', 'The chain moves to the third and final test.');
+      v.i = '2';
+      add('num > 1 → true',
+        'The loop is entered with i = 2. The condition tested before each pass is i < num.');
+      var count = 0;
+      for (var i = 2; i < n; i++) {
+        v.i = String(i);
+        var r = n % i;
+        if (r === 0) {
+          count++;
+          v.count = String(count);
+          add('i = ' + i + ': ' + n + ' % ' + i + ' == 0',
+            'Divisor found. The line is printed with print(...\\n) and count becomes ' + count + '.',
+            [i + ' is a divisor']);
+        } else {
+          add('i = ' + i + ': ' + n + ' % ' + i + ' == ' + r,
+            'Not a divisor. Nothing is printed and count stays at ' + count + '.');
+        }
+      }
+      v.i = '—';
+      v.count = String(count);
+      add('i = ' + n + ' — loop condition fails',
+        n + ' < ' + n + ' is false, so the loop stops. count kept its value of ' + count + '.');
+      ret = count;
+    }
+
+    v.ret = String(ret);
+    frame = 'main';
+    add('return count',
+      'The method hands ' + ret + ' back to its caller, where it is stored as isPrime1 = ' + ret + '.');
+
+    if (ret > 0) {
+      v.completion = '1';
+      add('isPrime1 > 0 → true',
+        'A positive return value means at least one divisor existed. main prints the composite verdict and increments completion.',
+        ['Hence, ' + n + ' is NOT a Prime no.']);
+    } else if (ret === 0) {
+      v.completion = '1';
+      add('isPrime1 > 0 → false, isPrime1 == 0 → true',
+        'No divisor existed anywhere in 2 … n − 1, which is exactly the definition of prime. completion is incremented.',
+        [n + ' is a Prime no.']);
+    } else if (ret === -1) {
+      v.completion = '1';
+      add('isPrime1 == -1 → true',
+        'The sentinel −1 identifies the number 1. The fixed message is printed and completion is incremented.',
+        ['1 is neither prime nor composite']);
+    } else {
+      add('no branch matches',
+        'isPrime1 is ' + ret + '. main tests > 0, == 0 and == -1 — all three are false, so nothing is printed and completion is left at 0.');
+    }
+
+    if (v.completion === '1') {
+      add('while (completion < 1) → false',
+        '1 < 1 is false, so the do-while ends. sc.close() runs and the program terminates.');
+    } else {
+      add('while (completion < 1) → true',
+        '0 < 1 is true, so control returns to the top of the loop and the prompt is printed again. The program is now waiting for another number.',
+        ["What's your number? "]);
+    }
+
+    return steps;
+  }
+
+  var stepNo = document.getElementById('stepNo');
+  var stepTitle = document.getElementById('stepTitle');
+  var stepDetail = document.getElementById('stepDetail');
+  var stepVars = document.getElementById('stepVars');
+  var traceOut = document.getElementById('traceOut');
+  var traceRail = document.getElementById('traceRail');
+  var traceCount = document.getElementById('traceCount');
+  var traceCase = document.getElementById('traceCase');
+  var btnPrev = document.getElementById('tPrev');
+  var btnNext = document.getElementById('tNext');
+  var btnPlay = document.getElementById('tPlay');
+  var btnReset = document.getElementById('tReset');
+
+  var trace = [], cursor = 0, timer = null;
+  var reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  var varKeys = [
+    ['n', 'n'], ['num', 'num (param)'], ['i', 'i'],
+    ['count', 'count'], ['ret', 'returned'], ['completion', 'completion']
+  ];
+
+  function renderTrace(){
+    var s = trace[cursor];
+    var card = stepTitle.closest('.now-card');
+    stepNo.textContent = 'step ' + (cursor + 1) + ' of ' + trace.length;
+    stepTitle.textContent = s.title;
+    stepDetail.textContent = s.detail;
+
+    stepVars.innerHTML = '';
+    var prev = trace[cursor - 1];
+    varKeys.forEach(function(k){
+      var t = document.createElement('div');
+      t.className = 'vtile';
+      if (prev && prev.vars[k[0]] !== s.vars[k[0]]) t.classList.add('changed');
+      var a = document.createElement('div'); a.className = 'k'; a.textContent = k[1];
+      var b = document.createElement('div'); b.className = 'v'; b.textContent = s.vars[k[0]];
+      t.appendChild(a); t.appendChild(b);
+      stepVars.appendChild(t);
+    });
+
+    /* soft swap: fade the text block out and back in so a step change never looks static */
+    if (card && !reduceMotion) {
+      card.classList.add('swap');
+      setTimeout(function(){ card.classList.remove('swap'); }, 90);
+    }
+
+    traceOut.innerHTML = '';
+    s.out.forEach(function(line){
+      var d = document.createElement('div');
+      d.className = 'l';
+      d.style.animation = 'lineIn .3s cubic-bezier(.22,1,.36,1) both';
+      d.textContent = line;
+      d.style.color = /divisor/.test(line) ? '#7fe7d4' : (/Prime|composite|neither/.test(line) ? '#f2f6ff' : (/invalid|CTRL/.test(line) ? '#ff9e9e' : '#a9bcff'));
+      traceOut.appendChild(d);
+    });
+    traceOut.scrollTop = traceOut.scrollHeight;
+
+    var fm = document.getElementById('frameMain');
+    var fM = document.getElementById('frameMethod');
+    var ss = document.getElementById('stackState');
+    if (fm && fM) {
+      var inMethod = s.frame === 'isPrime';
+      fm.classList.toggle('active', !inMethod);
+      fM.classList.toggle('active', inMethod);
+      if (ss) ss.textContent = inMethod ? 'inside isPrime' : 'main running';
+    }
+
+    traceCount.textContent = 'step ' + (cursor + 1) + ' / ' + trace.length;
+    btnPrev.disabled = cursor === 0;
+    btnNext.disabled = cursor === trace.length - 1;
+
+    Array.prototype.forEach.call(traceRail.children, function(b, i){
+      b.classList.toggle('cur', i === cursor);
+      b.classList.toggle('done', i < cursor);
+    });
+  }
+
+  function loadTrace(n){
+    stopPlay();
+    trace = traceFor(n);
+    cursor = 0;
+    traceRail.innerHTML = '';
+    trace.forEach(function(_, i){
+      var b = document.createElement('button');
+      b.type = 'button';
+      b.setAttribute('aria-label', 'go to step ' + (i + 1));
+      b.addEventListener('click', function(){ stopPlay(); cursor = i; renderTrace(); });
+      traceRail.appendChild(b);
+    });
+    renderTrace();
+  }
+
+  function stopPlay(){
+    if (timer) { clearInterval(timer); timer = null; }
+    btnPlay.textContent = '▶ play';
+  }
+
+  btnPrev.addEventListener('click', function(){ stopPlay(); if (cursor > 0) { cursor--; renderTrace(); } });
+  btnNext.addEventListener('click', function(){ stopPlay(); if (cursor < trace.length - 1) { cursor++; renderTrace(); } });
+  btnReset.addEventListener('click', function(){ loadTrace(Number(traceCase.value)); });
+  traceCase.addEventListener('change', function(){ loadTrace(Number(traceCase.value)); });
+  btnPlay.addEventListener('click', function(){
+    if (timer) { stopPlay(); return; }
+    if (cursor === trace.length - 1) { cursor = 0; renderTrace(); }
+    btnPlay.textContent = '❚❚ pause';
+    timer = setInterval(function(){
+      if (cursor < trace.length - 1) { cursor++; renderTrace(); }
+      else { stopPlay(); }
+    }, 1250);
+  });
+
+  loadTrace(12);
+
+  /* ---------- dock: collapsed by default, expands upward on demand ---------- */
+  var dock = document.getElementById('dock');
+  var dockToggle = document.getElementById('dockToggle');
+  var idleTimer = null, closeTimer = null;
+
+  function openDock(){
+    dock.classList.add('panel-open');
+    dock.classList.remove('idle');
+    dockToggle.setAttribute('aria-expanded', 'true');
+    if (closeTimer) { clearTimeout(closeTimer); closeTimer = null; }
+  }
+  function closeDock(){
+    dock.classList.remove('panel-open');
+    dockToggle.setAttribute('aria-expanded', 'false');
+  }
+  function scheduleClose(){
+    if (closeTimer) clearTimeout(closeTimer);
+    closeTimer = setTimeout(closeDock, 900);
+  }
+  function wakeDock(){
+    dock.classList.remove('idle');
+    if (idleTimer) clearTimeout(idleTimer);
+    idleTimer = setTimeout(function(){
+      if (!dock.classList.contains('panel-open')) dock.classList.add('idle');
+    }, 2600);
+  }
+
+  dockToggle.addEventListener('click', function(){
+    dock.classList.contains('panel-open') ? closeDock() : openDock();
+    wakeDock();
+  });
+  dock.addEventListener('mouseenter', openDock);
+  dock.addEventListener('mouseleave', scheduleClose);
+  dock.addEventListener('focusin', openDock);
+  dock.addEventListener('focusout', scheduleClose);
+  document.addEventListener('keydown', function(ev){ if (ev.key === 'Escape') closeDock(); });
+  document.addEventListener('pointerdown', function(ev){
+    if (!dock.contains(ev.target)) closeDock();
+  });
+  window.addEventListener('scroll', wakeDock, { passive: true });
+  wakeDock();
+})();
+</script>
+<script>(function(){function c(){var b=a.contentDocument||(a.contentWindow&&a.contentWindow.document);if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'a4e4743b485bff65',t:'MTc5MjYyOTY2MQ=='};var a=document.createElement('script');a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script>
+<style id="journal-return-link">
+#journal-return-link-ui{position:fixed;z-index:99999;left:18px;bottom:18px;display:inline-flex;align-items:center;gap:9px;padding:10px 14px;border:1px solid rgba(155,150,255,.35);border-radius:999px;background:rgba(8,10,22,.82);backdrop-filter:blur(16px);color:#f4f3ff;text-decoration:none;font:600 12px/1.2 system-ui,-apple-system,sans-serif;letter-spacing:.04em;box-shadow:0 8px 30px rgba(0,0,0,.3);transition:transform .2s ease,border-color .2s ease}
+#journal-return-link-ui:hover{transform:translateY(-2px);border-color:rgba(155,150,255,.8)}
+#journal-return-link-ui span{color:#a8a2ff;font-size:15px}
+@media(max-width:600px){#journal-return-link-ui{left:12px;bottom:12px;padding:9px 12px}}
+</style>
+<a id="journal-return-link-ui" href="../../../index.html" aria-label="Return to Java DSA Journal"><span>↖</span> JOURNAL HOME</a>
+
+</body>
+</html>

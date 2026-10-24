@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#080912"><meta name="description" content="A personal Java and DSA learning journal, organized by chapter and program.">
+<title>Java DSA Journal · A living record of problem-solving</title>
+<link rel="stylesheet" href="assets/journal.css">
+</head>
+<body class="home-page">
+<div class="ambient ambient-one"></div><div class="ambient ambient-two"></div>
+<header class="topbar">
+<a class="brand" href="index.html"><span class="brand-mark">J<span>.</span></span><span>JAVA DSA <b>JOURNAL</b></span></a>
+<nav class="topnav"><a href="#chapters">Chapters</a><a href="#library">Program library</a><a href="#roadmap">Roadmap</a></nav>
+<button class="mobile-menu" id="mobileMenu" aria-label="Toggle navigation">☰</button>
+</header>
+<main class="page-shell">
+<section class="hero">
+<div class="hero-copy">
+<div class="eyebrow"><span class="pulse-dot"></span> PERSONAL LEARNING SYSTEM <span class="eyebrow-line"></span> JAVA · DSA</div>
+<h1>Make the logic<br> <span>make sense.</span></h1>
+<p class="hero-lede">A living record of every concept, experiment, and problem solved — organized into chapters, built for deep understanding, and ready to grow with you.</p>
+<div class="hero-actions"><a class="button primary" href="#chapters">Explore chapters <span>↘</span></a><a class="text-link" href="#library">Find a program <span>⌕</span></a></div>
+<div class="hero-proof"><div class="avatar-stack"><span>J</span><span>{ }</span><span>λ</span></div><div><strong>One program at a time.</strong><small>Progress that compounds.</small></div></div>
+</div>
+<div class="hero-visual" aria-label="Decorative abstract code visualization">
+<div class="visual-grid"></div><div class="orbit orbit-a"></div><div class="orbit orbit-b"></div><div class="core-glow"></div>
+<div class="code-window"><div class="window-head"><span></span><span></span><span></span><label>PrimeNo.java</label><b>JAVA</b></div>
+<div class="code-lines"><div><i>01</i><span class="code-purple">public static</span> <span class="code-blue">boolean</span> isPrime<span class="code-white">(</span><span class="code-orange">int</span> n<span class="code-white">)</span> <span class="code-white">{</span></div><div><i>02</i>&nbsp;&nbsp;<span class="code-purple">if</span> <span class="code-white">(</span>n <span class="code-pink">&lt;=</span> <span class="code-orange">1</span><span class="code-white">)</span> <span class="code-purple">return</span> <span class="code-blue">false</span><span class="code-white">;</span></div><div><i>03</i>&nbsp;&nbsp;<span class="code-purple">for</span> <span class="code-white">(</span><span class="code-orange">int</span> i <span class="code-pink">=</span> <span class="code-orange">2</span><span class="code-white">;</span> i <span class="code-pink">&lt;</span> n<span class="code-white">;</span> i<span class="code-pink">++</span><span class="code-white">)</span> <span class="code-white">{</span></div><div><i>04</i>&nbsp;&nbsp;&nbsp;&nbsp;<span class="code-purple">if</span> <span class="code-white">(</span>n <span class="code-pink">%</span> i <span class="code-pink">==</span> <span class="code-orange">0</span><span class="code-white">)</span></div><div><i>05</i>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="code-purple">return</span> <span class="code-blue">false</span><span class="code-white">;</span></div><div><i>06</i>&nbsp;&nbsp;<span class="code-white">}</span></div><div><i>07</i>&nbsp;&nbsp;<span class="code-purple">return</span> <span class="code-blue">true</span><span class="code-white">;</span></div><div><i>08</i><span class="code-white">}</span></div></div>
+<div class="window-foot"><span><b></b> LOGIC IN PROGRESS</span><span>01 / 03</span></div></div>
+<div class="floating-chip chip-top"><span class="chip-icon">⌘</span><div><b>27 chapters</b><small>Expandable roadmap</small></div></div>
+<div class="floating-chip chip-bottom"><span class="chip-icon violet">↗</span><div><b>One journal</b><small>Every solution, connected</small></div></div>
+<div class="visual-caption">THINK CLEARLY. BUILD CONSISTENTLY.</div>
+</div>
+</section>
+<section class="metrics" aria-label="Journal overview">
+<div class="metric"><span class="metric-icon">◫</span><div><strong>27</strong><span>CHAPTERS PLANNED</span></div></div>
+<div class="metric"><span class="metric-icon violet">⌘</span><div><strong>03</strong><span>PROGRAMS ADDED</span></div></div>
+<div class="metric"><span class="metric-icon teal">◉</span><div><strong>01</strong><span>CHAPTER IN PROGRESS</span></div></div>
+<div class="metric"><span class="metric-icon orange">↗</span><div><strong>∞</strong><span>ROOM TO IMPROVE</span></div></div>
+</section>
+<section class="section-block" id="chapters">
+<div class="section-heading"><div><div class="eyebrow">THE KNOWLEDGE MAP</div><h2>Explore by chapter<span class="heading-period">.</span></h2><p>Follow the sequence or jump directly to the topic you’re practicing.</p></div><a class="text-link" href="#roadmap">View full roadmap <span>↗</span></a></div>
+<div class="chapter-toolbar"><div class="chapter-filters" id="chapterFilters"><button class="filter-chip active" data-filter="all">All chapters <span>27</span></button><button class="filter-chip" data-filter="active">In progress <span>1</span></button><button class="filter-chip" data-filter="empty">Not started <span>26</span></button></div><label class="compact-search"><span>⌕</span><input id="chapterSearch" type="search" placeholder="Find a chapter…" autocomplete="off"></label></div>
+<div class="chapter-grid" id="chapterGrid"></div>
+<div class="center-row"><button class="button secondary" id="showAllChapters">Show all chapters <span>↓</span></button></div>
+</section>
+<section class="section-block library-section" id="library">
+<div class="section-heading"><div><div class="eyebrow">SEARCHABLE PROGRAM LIBRARY</div><h2>Find your next <span>breakthrough.</span></h2><p>Search across program names, topics, and chapter labels.</p></div><div class="library-count"><strong>03</strong><span>PROGRAMS</span></div></div>
+<div class="library-search"><span class="search-symbol">⌕</span><input id="programSearch" type="search" placeholder="Try “prime”, “binary”, or “functions”…" autocomplete="off"><kbd>/</kbd></div>
+<div class="library-filters"><span>QUICK FILTER</span><button class="filter-chip active" data-program-filter="all">All programs</button><button class="filter-chip" data-program-filter="functions">Functions &amp; Methods</button><button class="filter-chip" data-program-filter="number">Number logic</button></div>
+<div class="program-list" id="programList"></div>
+<div class="no-results" id="noResults" hidden><span>⌕</span><strong>No matching programs</strong><p>Try a different keyword or clear the filters.</p><button class="text-link" id="clearSearch">Clear search ↗</button></div>
+</section>
+<section class="roadmap-panel" id="roadmap"><div class="roadmap-copy"><div class="eyebrow">BUILT TO EXPAND</div><h2>The map is ready.<br><span>Your progress fills it.</span></h2><p>Every chapter has its own place in the journal. As you complete programs, add their landing pages and grow this library without losing the structure.</p><a class="button primary" href="chapters/ch-04-functions-methods/index.html">Continue Chapter 04 <span>↗</span></a></div><div class="roadmap-art"><div class="roadmap-ring ring-1"></div><div class="roadmap-ring ring-2"></div><div class="roadmap-ring ring-3"></div><div class="roadmap-node node-1">01</div><div class="roadmap-node node-2">04</div><div class="roadmap-node node-3">11</div><div class="roadmap-node node-4">24</div><div class="roadmap-center">J<span>.</span></div></div></section>
+<footer class="footer"><a class="brand" href="index.html"><span class="brand-mark">J<span>.</span></span><span>JAVA DSA <b>JOURNAL</b></span></a><p>Made through practice. Improved through reflection.</p><a href="#top" class="back-top">BACK TO TOP ↑</a></footer>
+</main>
+<script src="assets/journal.js"></script>
+</body></html>

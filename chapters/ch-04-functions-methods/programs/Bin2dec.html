@@ -1,0 +1,2130 @@
+<!DOCTYPE html>
+<html lang="en" data-density="balanced" data-glow="medium">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Bin2dec.java — a guided dissection</title>
+<style>
+
+:root{
+  --bg:#05070d;
+  --panel:#0a0e17;
+  --ink:#e9edf8;
+  --muted:#9aa5bd;
+  --dim:#68728c;
+  --line:rgba(255,255,255,.075);
+  --line-strong:rgba(255,255,255,.16);
+  --brand:#f5a65b;
+  --brand-2:#c4b5fd;
+  --violet:#f0abfc;
+  --amber:#ffb066;
+  --rose:#ff8ba0;
+  --green:#6ee7b7;
+  --sp:1;
+  --lh:1.65;
+  --glow:1;
+  --r:18px;
+  --wrap:1180px;
+  --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+}
+html[data-density="comfort"]{ --sp:1.2; --lh:1.8; }
+html[data-density="compact"]{ --sp:.76; --lh:1.55; }
+html[data-glow="low"]{ --glow:.4; }
+html[data-glow="high"]{ --glow:1.55; }
+
+*{ box-sizing:border-box; }
+html{ scroll-behavior:smooth; -webkit-text-size-adjust:100%; scroll-padding-top:84px; }
+body{
+  margin:0; padding:0;
+  background:var(--bg);
+  color:var(--ink);
+  font-family:"Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  font-size:16px;
+  line-height:var(--lh);
+  -webkit-font-smoothing:antialiased;
+  overflow-x:hidden;
+}
+p{ margin:0 0 calc(14px * var(--sp)); color:var(--muted); }
+p:last-child{ margin-bottom:0; }
+h1,h2,h3,h4{ margin:0; color:var(--ink); letter-spacing:-.025em; font-weight:640; line-height:1.14; }
+a{ color:var(--brand); text-decoration:none; }
+strong{ color:#f2f5ff; font-weight:620; }
+ul,ol{ margin:0 0 calc(14px * var(--sp)); padding-left:1.15em; color:var(--muted); }
+li{ margin-bottom:8px; }
+li::marker{ color:var(--brand); }
+::selection{ background:rgba(245,166,91,.32); color:#fff; }
+
+/* ---------- background ---------- */
+.bg-layer{ position:fixed; inset:0; z-index:0; pointer-events:none; overflow:hidden; }
+.orb{ position:absolute; border-radius:50%; filter:blur(90px); will-change:transform; }
+.orb-a{
+  width:52vw; height:52vw; top:-14vw; left:-10vw;
+  background:radial-gradient(circle at 40% 40%, rgba(245,166,91,.55), rgba(245,166,91,0) 68%);
+  opacity:calc(.5 * var(--glow));
+  animation:drift-a 26s ease-in-out infinite;
+}
+.orb-b{
+  width:46vw; height:46vw; top:22vh; right:-14vw;
+  background:radial-gradient(circle at 50% 50%, rgba(196,181,253,.42), rgba(196,181,253,0) 68%);
+  opacity:calc(.42 * var(--glow));
+  animation:drift-b 32s ease-in-out infinite;
+}
+.orb-c{
+  width:44vw; height:44vw; bottom:-16vw; left:24vw;
+  background:radial-gradient(circle at 50% 50%, rgba(183,156,255,.38), rgba(183,156,255,0) 70%);
+  opacity:calc(.34 * var(--glow));
+  animation:drift-c 38s ease-in-out infinite;
+}
+@keyframes drift-a{ 0%,100%{transform:translate3d(0,0,0) scale(1)} 50%{transform:translate3d(6vw,4vh,0) scale(1.08)} }
+@keyframes drift-b{ 0%,100%{transform:translate3d(0,0,0) scale(1.04)} 50%{transform:translate3d(-5vw,-6vh,0) scale(.94)} }
+@keyframes drift-c{ 0%,100%{transform:translate3d(0,0,0) scale(1)} 50%{transform:translate3d(4vw,-5vh,0) scale(1.1)} }
+
+.grid-lines{
+  position:absolute; inset:0;
+  background-image:
+    linear-gradient(to right, rgba(255,255,255,.05) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(255,255,255,.05) 1px, transparent 1px);
+  background-size:74px 74px;
+  mask-image:radial-gradient(ellipse 80% 60% at 50% 20%, #000 20%, transparent 78%);
+  -webkit-mask-image:radial-gradient(ellipse 80% 60% at 50% 20%, #000 20%, transparent 78%);
+  opacity:.5;
+}
+.noise{
+  position:absolute; inset:0; opacity:.22; mix-blend-mode:overlay;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)' opacity='0.4'/%3E%3C/svg%3E");
+}
+.vignette{ position:absolute; inset:0; background:radial-gradient(ellipse at 50% -10%, transparent 30%, rgba(5,7,13,.72) 82%); }
+
+/* ---------- nav ---------- */
+.nav{
+  position:fixed; top:0; left:0; right:0; z-index:80;
+  background:linear-gradient(180deg, rgba(5,7,13,.94), rgba(5,7,13,.56));
+  backdrop-filter:blur(16px) saturate(150%);
+  -webkit-backdrop-filter:blur(16px) saturate(150%);
+  border-bottom:1px solid rgba(255,255,255,.06);
+}
+.nav-in{
+  width:min(var(--wrap), 100% - 40px); margin-inline:auto;
+  display:flex; align-items:center; justify-content:space-between; gap:16px; height:62px;
+}
+.brand{ display:flex; align-items:center; gap:10px; font-weight:660; font-size:14.5px; letter-spacing:-.01em; color:var(--ink); white-space:nowrap; }
+.brand .dot{ width:9px; height:9px; border-radius:50%; background:var(--brand); box-shadow:0 0 16px var(--brand), 0 0 4px var(--brand); animation:pulse-dot 2.8s ease-in-out infinite; }
+@keyframes pulse-dot{ 0%,100%{ box-shadow:0 0 16px var(--brand), 0 0 4px var(--brand); } 50%{ box-shadow:0 0 26px var(--brand), 0 0 8px var(--brand); } }
+.brand span.sub{ color:var(--dim); font-weight:450; font-size:12.5px; letter-spacing:0; }
+.nav-links{ display:flex; gap:2px; align-items:center; min-width:0; }
+.nav-links a{
+  font-size:12.5px; color:var(--muted); padding:7px 10px; border-radius:9px;
+  transition:color .2s, background .2s, box-shadow .3s; white-space:nowrap;
+}
+.nav-links a:hover{ color:var(--ink); background:rgba(255,255,255,.055); }
+.nav-links a.active{
+  color:#fdf1e4; background:rgba(245,166,91,.13);
+  box-shadow:inset 0 0 0 1px rgba(245,166,91,.3), 0 0 24px -10px rgba(245,166,91,.9);
+}
+.progress{ position:absolute; left:0; right:0; bottom:-1px; height:2px; background:linear-gradient(90deg, var(--brand), var(--brand-2) 55%, var(--violet)); transform:scaleX(0); transform-origin:0 50%; transition:transform .1s linear; }
+
+/* ---------- layout ---------- */
+main{ position:relative; z-index:1; }
+.wrap{ width:min(var(--wrap), 100% - 44px); margin-inline:auto; }
+.section{ padding:calc(92px * var(--sp)) 0; position:relative; }
+.section + .section{ border-top:1px solid rgba(255,255,255,.045); }
+.eyebrow{
+  display:flex; align-items:center; gap:12px;
+  font-family:var(--mono); font-size:11.5px; font-weight:600; letter-spacing:.2em;
+  text-transform:uppercase; color:var(--dim);
+}
+.eyebrow::before{ content:""; width:34px; height:1px; background:linear-gradient(90deg, var(--brand), transparent); }
+.eyebrow b{ color:var(--brand); font-weight:600; }
+h2{ font-size:clamp(26px, 3.3vw, 40px); margin:16px 0 16px; }
+h3{ font-size:clamp(16.5px, 1.5vw, 19px); margin-bottom:10px; }
+.lead{ color:var(--muted); font-size:clamp(15px, 1.05vw, 17px); max-width:66ch; line-height:1.7; }
+.head{ margin-bottom:calc(38px * var(--sp)); max-width:74ch; }
+
+/* ---------- reveal ---------- */
+.reveal{ opacity:0; transform:translateY(22px); filter:blur(5px); transition:opacity .9s cubic-bezier(.22,1,.36,1), transform .9s cubic-bezier(.22,1,.36,1), filter .9s ease; transition-delay:var(--d, 0ms); }
+.reveal.in{ opacity:1; transform:none; filter:none; }
+
+/* ---------- cards ---------- */
+.card{
+  position:relative; border-radius:var(--r);
+  background:linear-gradient(158deg, rgba(255,255,255,.058), rgba(255,255,255,.014) 55%, rgba(255,255,255,.028));
+  border:1px solid var(--line);
+  padding:calc(24px * var(--sp));
+  box-shadow:0 1px 0 rgba(255,255,255,.05) inset, 0 30px 60px -42px rgba(0,0,0,.95);
+  transition:transform .5s cubic-bezier(.22,1,.36,1), border-color .4s, box-shadow .5s;
+  backdrop-filter:blur(10px);
+  overflow:hidden;
+}
+.card::before{
+  content:""; position:absolute; inset:0 0 auto 0; height:1px;
+  background:linear-gradient(90deg, transparent, rgba(245,166,91,.55), rgba(196,181,253,.35), transparent);
+  opacity:0; transition:opacity .5s;
+}
+.card:hover{ transform:translateY(-4px); border-color:var(--line-strong); box-shadow:0 1px 0 rgba(255,255,255,.07) inset, 0 46px 80px -48px rgba(0,0,0,1), 0 0 60px -34px rgba(245,166,91,.55); }
+.card:hover::before{ opacity:1; }
+.card h3{ display:flex; align-items:center; gap:10px; }
+.tag{
+  font-family:var(--mono); font-size:10.5px; letter-spacing:.12em; text-transform:uppercase;
+  padding:4px 8px; border-radius:6px; color:var(--brand);
+  background:rgba(245,166,91,.11); border:1px solid rgba(245,166,91,.22);
+}
+.grid{ display:grid; gap:calc(18px * var(--sp)); }
+.g3{ grid-template-columns:repeat(3, minmax(0,1fr)); }
+.g2{ grid-template-columns:repeat(2, minmax(0,1fr)); }
+@media (max-width:940px){ .g3{ grid-template-columns:1fr; } .g2{ grid-template-columns:1fr; } }
+
+/* ---------- hero ---------- */
+.hero{ position:relative; padding:calc(132px + 34px) 0 calc(84px * var(--sp)); }
+.hero-grid{ display:grid; grid-template-columns:1.06fr .94fr; gap:clamp(28px,4vw,56px); align-items:center; }
+@media (max-width:1020px){ .hero-grid{ grid-template-columns:1fr; gap:44px; } }
+.hero h1{ font-size:clamp(42px, 6.6vw, 82px); line-height:1.02; letter-spacing:-.045em; font-weight:660; }
+.hero h1 .file{ background:linear-gradient(100deg, #fff 6%, var(--brand) 42%, var(--brand-2) 74%, var(--violet)); -webkit-background-clip:text; background-clip:text; color:transparent; background-size:210% 100%; animation:sheen 9s ease-in-out infinite; }
+@keyframes sheen{ 0%,100%{ background-position:0% 50%; } 50%{ background-position:100% 50%; } }
+.hero .kicker{
+  display:inline-flex; align-items:center; gap:9px; margin-bottom:22px;
+  font-family:var(--mono); font-size:11.5px; letter-spacing:.16em; text-transform:uppercase; color:#c9d3ee;
+  padding:7px 13px 7px 9px; border-radius:999px;
+  background:rgba(255,255,255,.045); border:1px solid var(--line);
+  box-shadow:0 0 40px -22px rgba(245,166,91,.9);
+}
+.hero .kicker i{ width:6px; height:6px; border-radius:50%; background:var(--brand-2); box-shadow:0 0 12px var(--brand-2); font-style:normal; }
+.hero .sub{ font-size:clamp(15.5px, 1.35vw, 19px); color:#b9c3dc; max-width:52ch; margin-top:22px; line-height:1.62; }
+.chips{ display:flex; flex-wrap:wrap; gap:8px; margin-top:26px; }
+.chip{
+  font-family:var(--mono); font-size:11.8px; color:#c3cde8; padding:6px 11px; border-radius:8px;
+  background:rgba(255,255,255,.04); border:1px solid var(--line); transition:.3s;
+}
+.chip:hover{ border-color:rgba(245,166,91,.4); color:#fff; box-shadow:0 0 26px -14px rgba(245,166,91,.9); }
+.cta{ display:flex; flex-wrap:wrap; gap:12px; margin-top:34px; }
+.btn{
+  display:inline-flex; align-items:center; gap:9px; cursor:pointer;
+  font-family:inherit; font-size:14px; font-weight:560; letter-spacing:.005em;
+  padding:12px 20px; border-radius:12px; border:1px solid transparent;
+  transition:transform .35s cubic-bezier(.22,1,.36,1), box-shadow .35s, background .3s, border-color .3s;
+  text-decoration:none;
+}
+.btn-primary{
+  color:#080c16;
+  background:linear-gradient(135deg, #ffd9a8, #f5a65b 46%, #c4b5fd);
+  box-shadow:0 0 0 1px rgba(255,255,255,.16) inset, 0 18px 46px -20px rgba(245,166,91,.95), 0 0 40px -22px rgba(196,181,253,.9);
+}
+.btn-primary:hover{ transform:translateY(-2px); box-shadow:0 0 0 1px rgba(255,255,255,.22) inset, 0 24px 54px -18px rgba(245,166,91,1), 0 0 54px -18px rgba(196,181,253,1); }
+.btn-ghost{ color:#d6ddf2; background:rgba(255,255,255,.045); border-color:var(--line-strong); }
+.btn-ghost:hover{ transform:translateY(-2px); background:rgba(255,255,255,.08); border-color:rgba(245,166,91,.42); box-shadow:0 0 42px -22px rgba(245,166,91,.9); }
+
+/* hero visual */
+.hero-vis{ position:relative; perspective:1200px; }
+.verdict-card{
+  position:relative; border-radius:22px; padding:calc(26px * var(--sp));
+  background:linear-gradient(165deg, rgba(20,26,42,.92), rgba(9,12,20,.92));
+  border:1px solid rgba(255,255,255,.1);
+  box-shadow:0 1px 0 rgba(255,255,255,.09) inset, 0 60px 120px -60px rgba(0,0,0,1), 0 0 90px -50px rgba(245,166,91,.85);
+  transform-style:preserve-3d;
+  transition:transform .35s ease-out;
+  animation:floaty 9s ease-in-out infinite;
+}
+@keyframes floaty{ 0%,100%{ translate:0 0; } 50%{ translate:0 -10px; } }
+.verdict-card .vc-head{ display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:18px; }
+.verdict-card .vc-head span{ font-family:var(--mono); font-size:11px; letter-spacing:.16em; text-transform:uppercase; color:var(--dim); }
+.vrow{
+  display:grid; grid-template-columns:92px 1fr auto; align-items:center; gap:12px;
+  padding:12px 12px; border-radius:11px; margin-bottom:8px;
+  background:rgba(255,255,255,.028); border:1px solid rgba(255,255,255,.06);
+  transition:transform .4s cubic-bezier(.22,1,.36,1), background .4s, border-color .4s;
+}
+.vrow:hover{ transform:translateX(4px); background:rgba(255,255,255,.05); }
+.vrow .k{ font-family:var(--mono); font-size:12px; color:#dbe3f7; white-space:nowrap; }
+.vrow .v{ font-size:13px; color:var(--muted); letter-spacing:-.005em; }
+.vrow .dotmark{ width:8px; height:8px; border-radius:50%; box-shadow:0 0 14px currentColor; }
+.vrow.p{ color:var(--brand-2); } .vrow.p .k{ color:#b9f5e9; }
+.vrow.c{ color:var(--brand); }
+.vrow.one{ color:var(--violet); }
+.vrow.err{ color:var(--amber); }
+.vrow.err .v{ color:#ffcf9e; }
+.vrow.err{ box-shadow:0 0 34px -22px rgba(255,176,102,.9); }
+.orbit{
+  position:absolute; inset:-38px; border-radius:50%;
+  border:1px dashed rgba(245,166,91,.16);
+  animation:spin 46s linear infinite; pointer-events:none;
+}
+.orbit::after{ content:""; position:absolute; top:-3px; left:50%; width:6px; height:6px; border-radius:50%; background:var(--brand-2); box-shadow:0 0 16px var(--brand-2); }
+@keyframes spin{ to{ transform:rotate(360deg); } }
+.scrollcue{ display:flex; align-items:center; gap:10px; margin-top:calc(52px * var(--sp)); color:var(--dim); font-family:var(--mono); font-size:11px; letter-spacing:.18em; text-transform:uppercase; }
+.scrollcue .bar{ width:52px; height:1px; background:linear-gradient(90deg, var(--brand), transparent); position:relative; overflow:hidden; }
+.scrollcue .bar::after{ content:""; position:absolute; inset:0; background:var(--brand-2); animation:sweep 2.6s ease-in-out infinite; }
+@keyframes sweep{ 0%{ transform:translateX(-100%); } 60%,100%{ transform:translateX(100%); } }
+
+/* ---------- prose blocks ---------- */
+.prose{ max-width:74ch; }
+.prose h3{ margin-top:calc(26px * var(--sp)); }
+.prose ul{ padding-left:1.1em; }
+.note{
+  margin:calc(18px * var(--sp)) 0 0; padding:14px 16px; border-radius:12px;
+  background:rgba(245,166,91,.07); border:1px solid rgba(245,166,91,.2);
+  color:#c8d3f0; font-size:14.5px;
+}
+.note.warn{ background:rgba(255,176,102,.075); border-color:rgba(255,176,102,.26); color:#ffd8b4; }
+.note.ok{ background:rgba(110,231,183,.06); border-color:rgba(110,231,183,.24); color:#c4f5e2; }
+.note b{ color:#fff; }
+
+/* ---------- code ---------- */
+.code{
+  position:relative; border-radius:14px; overflow:hidden;
+  background:linear-gradient(180deg, #080b13, #060910);
+  border:1px solid rgba(255,255,255,.085);
+  box-shadow:0 1px 0 rgba(255,255,255,.05) inset, 0 34px 70px -46px #000;
+  font-family:var(--mono); font-size:13px; line-height:1.72;
+}
+.code .cb{
+  display:flex; align-items:center; justify-content:space-between; gap:12px;
+  padding:9px 14px; border-bottom:1px solid rgba(255,255,255,.07);
+  background:rgba(255,255,255,.022);
+}
+.code .cb .fname{ font-size:11.5px; color:#a9b4cd; letter-spacing:.02em; display:flex; align-items:center; gap:8px; }
+.code .cb .fname i{ width:7px; height:7px; border-radius:50%; background:var(--brand); box-shadow:0 0 12px var(--brand); font-style:normal; }
+.code pre{ margin:0; padding:16px 18px; overflow-x:auto; color:#cfd8ee; }
+.code pre::-webkit-scrollbar{ height:8px; }
+.code pre::-webkit-scrollbar-thumb{ background:rgba(255,255,255,.14); border-radius:99px; }
+.tok-k{ color:#9aa9ff; } .tok-t{ color:#ffc98b; } .tok-s{ color:#ffc98b; } .tok-c{ color:#5f6b86; font-style:italic; } .tok-n{ color:#f2a8c0; } .tok-m{ color:#c6b3ff; }
+.ln{ display:inline-block; width:2.1em; color:#3d475f; user-select:none; text-align:right; margin-right:14px; }
+.src-note{ font-size:13px; color:var(--dim); margin-top:12px; }
+
+/* inline code */
+code.inl{
+  font-family:var(--mono); font-size:.88em; color:#d7e0f6;
+  background:rgba(255,255,255,.062); border:1px solid rgba(255,255,255,.085);
+  padding:1.5px 6px; border-radius:6px; white-space:nowrap;
+}
+
+/* ---------- tables ---------- */
+.tablewrap.tight table{ min-width:0; font-size:12.9px; }
+.tablewrap.tight tbody td{ padding:11px 12px; }
+.tablewrap.tight thead th{ padding:11px 12px; font-size:10.5px; }
+.tablewrap{ overflow-x:auto; border-radius:14px; border:1px solid var(--line); background:rgba(255,255,255,.02); }
+table{ width:100%; border-collapse:collapse; font-size:14px; min-width:560px; }
+thead th{
+  text-align:left; padding:13px 16px; font-family:var(--mono); font-size:11px;
+  letter-spacing:.14em; text-transform:uppercase; color:var(--dim); font-weight:600;
+  border-bottom:1px solid var(--line); white-space:nowrap;
+}
+tbody td{ padding:13px 16px; border-bottom:1px solid rgba(255,255,255,.045); color:var(--muted); vertical-align:top; }
+tbody tr:last-child td{ border-bottom:none; }
+tbody tr{ transition:background .25s; }
+tbody tr:hover{ background:rgba(245,166,91,.055); }
+td.mono, th.mono, .mono{ font-family:var(--mono); font-size:12.6px; color:#cbd5ee; }
+.pill{ display:inline-block; padding:2px 9px; border-radius:99px; font-family:var(--mono); font-size:11.5px; border:1px solid; }
+.pill.ok{ color:#9df3d3; border-color:rgba(110,231,183,.35); background:rgba(110,231,183,.09); }
+.pill.bad{ color:#ffc79b; border-color:rgba(255,176,102,.35); background:rgba(255,176,102,.09); }
+.pill.neu{ color:#c3cffe; border-color:rgba(245,166,91,.35); background:rgba(245,166,91,.09); }
+.pill.vio{ color:#dcc7ff; border-color:rgba(183,156,255,.35); background:rgba(183,156,255,.1); }
+
+/* ---------- terminal ---------- */
+.sim{ display:grid; grid-template-columns:1.32fr .68fr; gap:calc(18px * var(--sp)); align-items:start; }
+@media (max-width:980px){ .sim{ grid-template-columns:1fr; } }
+.term{
+  border-radius:16px; overflow:hidden; border:1px solid rgba(255,255,255,.1);
+  background:linear-gradient(180deg, #070a11, #05070c);
+  box-shadow:0 1px 0 rgba(255,255,255,.06) inset, 0 50px 100px -60px #000, 0 0 80px -50px rgba(196,181,253,.6);
+}
+.term-bar{ display:flex; align-items:center; gap:10px; padding:10px 14px; border-bottom:1px solid rgba(255,255,255,.07); background:rgba(255,255,255,.024); }
+.term-bar .dots{ display:flex; gap:6px; }
+.term-bar .dots i{ width:9px; height:9px; border-radius:50%; background:#2b3246; }
+.term-bar .dots i:nth-child(1){ background:#ff6b6b55; } .term-bar .dots i:nth-child(2){ background:#ffd16655; } .term-bar .dots i:nth-child(3){ background:#6ee7b766; }
+.term-bar .tt{ font-family:var(--mono); font-size:11.5px; color:#8d99b4; letter-spacing:.03em; }
+.term-bar .live{ margin-left:auto; display:inline-flex; align-items:center; gap:6px; font-family:var(--mono); font-size:10.5px; letter-spacing:.14em; text-transform:uppercase; color:#8ff0d3; }
+.term-bar .live i{ width:6px; height:6px; border-radius:50%; background:#6ee7b7; box-shadow:0 0 12px #6ee7b7; animation:pulse-dot 2s ease-in-out infinite; }
+.term-body{
+  font-family:var(--mono); font-size:13px; line-height:1.75; padding:16px 16px 8px;
+  height:320px; overflow-y:auto; color:#cfd8ee;
+}
+.term-body::-webkit-scrollbar{ width:8px; }
+.term-body::-webkit-scrollbar-thumb{ background:rgba(255,255,255,.13); border-radius:99px; }
+.l{ animation:lineIn .32s cubic-bezier(.22,1,.36,1) both; white-space:pre-wrap; word-break:break-word; }
+@keyframes lineIn{ from{ opacity:0; transform:translateY(5px); } to{ opacity:1; transform:none; } }
+.l-prompt{ color:#ffd9a8; }
+.l-in{ color:#6f7c98; }
+.l-in::before{ content:"› "; color:#4b5670; }
+.l-div{ color:#ffc98b; }
+.l-res{ color:#ffffff; font-weight:600; }
+.l-err{ color:#ff9e9e; }
+.l-note{ color:#5d6a85; font-style:italic; }
+.l-sep{ color:#3f4a62; letter-spacing:.1em; margin:6px 0; }
+.caret{ display:inline-block; width:7px; height:14px; background:#ffd9a8; vertical-align:-2px; animation:blink 1.05s steps(1) infinite; }
+@keyframes blink{ 50%{ opacity:0; } }
+.term-form{ display:flex; align-items:center; gap:10px; padding:12px 14px; border-top:1px solid rgba(255,255,255,.07); background:rgba(255,255,255,.018); }
+.term-form .pfx{ font-family:var(--mono); color:#6ee7b7; font-size:14px; }
+.term-form input{
+  flex:1; min-width:0; background:transparent; border:none; outline:none;
+  font-family:var(--mono); font-size:13.5px; color:#eaf0ff; padding:6px 0;
+}
+.term-form input::placeholder{ color:#4d5871; }
+.term-form button{
+  font-family:var(--mono); font-size:11.5px; letter-spacing:.1em; text-transform:uppercase;
+  padding:8px 14px; border-radius:9px; cursor:pointer; color:#08111a; border:none;
+  background:linear-gradient(135deg, #ffd9a8, #c4b5fd);
+  box-shadow:0 0 28px -12px rgba(245,166,91,.9); transition:.28s;
+}
+.term-form button:hover{ filter:brightness(1.08); box-shadow:0 0 34px -8px rgba(245,166,91,1); }
+.presets{ display:flex; flex-wrap:wrap; gap:7px; margin-top:14px; }
+.preset{
+  font-family:var(--mono); font-size:12px; padding:6px 11px; border-radius:8px; cursor:pointer;
+  color:#c2cdeb; background:rgba(255,255,255,.04); border:1px solid var(--line); transition:.26s;
+}
+.preset:hover{ color:#fff; border-color:rgba(245,166,91,.45); background:rgba(245,166,91,.1); box-shadow:0 0 30px -16px rgba(245,166,91,1); transform:translateY(-1px); }
+.preset small{ color:var(--dim); font-size:10px; margin-left:5px; letter-spacing:.06em; text-transform:uppercase; }
+.preset.ghost{ color:#8c97b1; }
+
+/* state panel */
+.state{ display:grid; gap:10px; }
+.stat{
+  display:flex; align-items:center; justify-content:space-between; gap:10px;
+  padding:12px 14px; border-radius:11px;
+  background:rgba(255,255,255,.03); border:1px solid rgba(255,255,255,.07);
+}
+.stat .lab{ font-family:var(--mono); font-size:11px; letter-spacing:.12em; text-transform:uppercase; color:var(--dim); }
+.stat .val{ font-family:var(--mono); font-size:15px; color:#eaf0ff; }
+.stat .val.hot{ color:#ffc98b; text-shadow:0 0 22px rgba(196,181,253,.65); }
+.stat.note-stat{ display:block; }
+.stat.note-stat .lab{ display:block; margin-bottom:5px; }
+.stat.note-stat .val{ display:block; font-size:12.5px; line-height:1.6; color:#b9c3dc; font-family:var(--mono); }
+.stat .val.warnv{ color:#ffc79b; }
+
+/* ---------- trace ---------- */
+.trace{ }
+.trace-bar{ display:flex; flex-wrap:wrap; align-items:center; gap:10px; margin-bottom:16px; }
+.tbtn{
+  font-family:var(--mono); font-size:12px; padding:8px 13px; border-radius:9px; cursor:pointer;
+  color:#cbd6f2; background:rgba(255,255,255,.045); border:1px solid var(--line); transition:.26s;
+}
+.tbtn:hover:not(:disabled){ color:#fff; border-color:rgba(245,166,91,.45); box-shadow:0 0 30px -16px rgba(245,166,91,1); }
+.tbtn:disabled{ opacity:.35; cursor:not-allowed; }
+.tbtn.primary{ background:rgba(245,166,91,.16); border-color:rgba(245,166,91,.4); color:#e8edff; }
+select{
+  font-family:var(--mono); font-size:12.5px; padding:8px 12px; border-radius:9px; cursor:pointer;
+  color:#eaf0ff; background:#0c1119; border:1px solid var(--line-strong); outline:none;
+}
+.trace-count{ margin-left:auto; font-family:var(--mono); font-size:11.5px; color:var(--dim); letter-spacing:.08em; }
+.trace-grid{ display:grid; grid-template-columns:1.15fr .85fr; gap:calc(18px * var(--sp)); align-items:start; }
+@media (max-width:980px){ .trace-grid{ grid-template-columns:1fr; } }
+.now-card{
+  border-radius:16px; padding:calc(22px * var(--sp)); position:relative; overflow:hidden;
+  background:linear-gradient(160deg, rgba(24,31,50,.85), rgba(8,11,18,.9));
+  border:1px solid rgba(245,166,91,.22);
+  box-shadow:0 1px 0 rgba(255,255,255,.07) inset, 0 40px 80px -55px #000, 0 0 70px -46px rgba(245,166,91,.9);
+}
+.now-card .stepno{ font-family:var(--mono); font-size:11px; letter-spacing:.18em; text-transform:uppercase; color:var(--brand); }
+.now-card h3{ margin:10px 0 8px; font-size:clamp(17px,1.6vw,21px); }
+.now-card .detail{ color:#b2bdd8; font-size:14.5px; margin:0; min-height:2.6em; }
+.now-card .stepno, .now-card h3, .now-card .detail{ transition:opacity .22s ease, transform .22s ease; }
+.now-card.swap .stepno, .now-card.swap h3, .now-card.swap .detail{ opacity:0; transform:translateY(-4px); }
+.vtile{ transition:border-color .35s, box-shadow .35s, background .35s; }
+.vars{ display:grid; grid-template-columns:repeat(3, minmax(0,1fr)); gap:8px; margin-top:18px; }
+.vtile{ padding:9px 11px; border-radius:10px; background:rgba(255,255,255,.035); border:1px solid rgba(255,255,255,.07); }
+.vtile .k{ font-family:var(--mono); font-size:10px; letter-spacing:.1em; text-transform:uppercase; color:var(--dim); }
+.vtile .v{ font-family:var(--mono); font-size:14px; color:#eaf0ff; margin-top:2px; }
+.vtile.changed{ border-color:rgba(196,181,253,.45); box-shadow:0 0 26px -14px rgba(196,181,253,.9); }
+.vtile.changed .v{ color:#ffc98b; }
+.tc-body{ font-family:var(--mono); font-size:12.5px; line-height:1.7; padding:14px 16px; height:250px; overflow-y:auto; color:#cfd8ee; background:linear-gradient(180deg,#070a11,#05070c); border-radius:12px; border:1px solid rgba(255,255,255,.08); }
+.tc-head{ font-family:var(--mono); font-size:10.5px; letter-spacing:.16em; text-transform:uppercase; color:var(--dim); margin-bottom:8px; }
+.rail{ display:flex; flex-wrap:wrap; gap:5px; margin-top:18px; }
+.rail button{ width:24px; height:6px; border-radius:99px; border:none; cursor:pointer; background:rgba(255,255,255,.1); padding:0; transition:.25s; }
+.rail button:hover{ background:rgba(255,255,255,.26); }
+.rail button.done{ background:rgba(245,166,91,.45); }
+.rail button.cur{ background:linear-gradient(90deg,var(--brand),var(--brand-2)); box-shadow:0 0 16px rgba(245,166,91,.85); }
+
+/* ---------- call stack ---------- */
+.stack{
+  margin-top:12px; padding:12px 14px; border-radius:12px;
+  background:rgba(255,255,255,.025); border:1px solid rgba(255,255,255,.07);
+}
+.stack .sh{ font-family:var(--mono); font-size:10.5px; letter-spacing:.16em; text-transform:uppercase; color:var(--dim); margin-bottom:9px; display:flex; justify-content:space-between; gap:10px; }
+.stack .sh b{ color:#ffc98b; font-weight:600; }
+.frame{
+  display:flex; align-items:center; gap:10px;
+  font-family:var(--mono); font-size:12px; color:#8e9ab5;
+  padding:8px 11px; border-radius:9px; margin-bottom:6px;
+  background:rgba(255,255,255,.022); border:1px solid rgba(255,255,255,.055);
+  transition:.4s cubic-bezier(.22,1,.36,1);
+}
+.frame:last-child{ margin-bottom:0; }
+.frame .name{ flex:0 0 auto; }
+.frame .meta{ font-size:10.5px; letter-spacing:.04em; color:#535e77; margin-left:auto; text-align:right; }
+.frame.active{
+  color:#eef3ff; border-color:rgba(245,166,91,.42);
+  background:rgba(245,166,91,.1);
+  box-shadow:0 0 34px -22px rgba(245,166,91,1), inset 0 0 0 1px rgba(245,166,91,.08);
+  transform:translateX(4px);
+}
+.frame.active .meta{ color:#ffd9a8; }
+.frame.active::before{
+  content:""; width:6px; height:6px; border-radius:50%; margin-right:2px;
+  background:var(--brand-2); box-shadow:0 0 12px var(--brand-2);
+}
+.frame.active{ padding-left:9px; }
+.frame{ padding-left:11px; }
+
+/* ---------- flow ---------- */
+.flow{ display:grid; gap:10px; margin-top:6px; }
+.fnode{
+  display:grid; grid-template-columns:auto 1fr; gap:14px; align-items:start;
+  padding:14px 16px; border-radius:12px;
+  background:rgba(255,255,255,.03); border:1px solid var(--line);
+  transition:.35s; position:relative;
+}
+.fnode:hover{ border-color:rgba(245,166,91,.34); background:rgba(245,166,91,.055); }
+.fnode .cond{ font-family:var(--mono); font-size:12.5px; color:#dfe6f8; padding-top:1px; white-space:nowrap; }
+.fnode .act{ font-size:14px; color:var(--muted); }
+.fnode.key{ border-color:rgba(196,181,253,.3); box-shadow:0 0 40px -30px rgba(196,181,253,.9); }
+.fnode.bad{ border-color:rgba(255,176,102,.3); }
+.arrow{ text-align:center; color:#39445c; font-size:13px; line-height:1; }
+
+/* ---------- takeaways / challenge ---------- */
+.challenge{ border-radius:16px; padding:calc(22px * var(--sp)); background:linear-gradient(150deg, rgba(245,166,91,.1), rgba(196,181,253,.05)); border:1px solid rgba(245,166,91,.24); }
+.challenge h3{ margin-bottom:8px; }
+.reveal-btn{ margin-top:12px; }
+.answer{ display:none; margin-top:14px; padding:14px 16px; border-radius:11px; background:rgba(5,7,13,.6); border:1px solid rgba(255,255,255,.09); color:#c6d1ec; font-size:14.2px; }
+.answer.open{ display:block; animation:lineIn .4s cubic-bezier(.22,1,.36,1) both; }
+
+/* ---------- source ---------- */
+.src-wrap{ position:relative; }
+.copy-btn{
+  font-family:var(--mono); font-size:11px; letter-spacing:.1em; text-transform:uppercase; cursor:pointer;
+  padding:6px 11px; border-radius:7px; color:#cfd8ee; background:rgba(255,255,255,.06);
+  border:1px solid var(--line-strong); transition:.26s;
+}
+.copy-btn:hover{ color:#fff; border-color:rgba(245,166,91,.5); box-shadow:0 0 26px -14px rgba(245,166,91,1); }
+.copy-btn.ok{ color:#8ff0d3; border-color:rgba(110,231,183,.5); }
+
+/* ---------- complexity ---------- */
+.bars{ display:grid; gap:10px; margin-top:8px; }
+.barrow{ display:grid; grid-template-columns:96px 1fr 118px; gap:12px; align-items:center; font-family:var(--mono); font-size:12px; color:#b6c1da; }
+.bartrack{ height:8px; border-radius:99px; background:rgba(255,255,255,.06); overflow:hidden; }
+.barfill{ height:100%; width:0; border-radius:99px; background:linear-gradient(90deg, var(--brand), var(--brand-2)); box-shadow:0 0 24px -6px rgba(245,166,91,.85); transition:width 1.1s cubic-bezier(.22,1,.36,1); }
+.barrow .ops{ color:var(--dim); text-align:right; font-size:11.5px; }
+
+/* ---------- dock (collapsed by default: never covers the page) ---------- */
+.dock{
+  position:fixed; left:50%; bottom:16px; z-index:70;
+  transform:translateX(-50%);
+  display:flex; flex-direction:column; align-items:flex-end; gap:8px;
+  transition:opacity .55s ease;
+}
+.dock.idle{ opacity:.6; }
+.dock.idle:hover, .dock.panel-open{ opacity:1; }
+.dock-toggle{
+  display:flex; align-items:center; gap:9px; cursor:pointer;
+  font-family:var(--mono); font-size:11px; letter-spacing:.08em; text-transform:uppercase;
+  padding:8px 13px; border-radius:999px; color:#c3cde8;
+  background:rgba(9,12,20,.87);
+  backdrop-filter:blur(14px) saturate(150%); -webkit-backdrop-filter:blur(14px) saturate(150%);
+  border:1px solid rgba(255,255,255,.11);
+  box-shadow:0 18px 44px -26px #000, 0 0 34px -24px rgba(245,166,91,.9);
+  transition:color .28s, border-color .28s, box-shadow .3s, transform .3s;
+}
+.dock-toggle:hover{ color:#fff; border-color:rgba(245,166,91,.5); box-shadow:0 18px 44px -26px #000, 0 0 40px -18px rgba(245,166,91,.95); }
+.dock-toggle .g{ width:6px; height:6px; border-radius:50%; background:var(--brand-2); box-shadow:0 0 10px var(--brand-2); animation:pulse-dot 2.8s ease-in-out infinite; }
+.dock-toggle .chev{ transition:transform .38s cubic-bezier(.22,1,.36,1); display:block; }
+.dock.panel-open .dock-toggle .chev{ transform:rotate(180deg); }
+.dock-panel{
+  display:flex; align-items:center; gap:14px; flex-wrap:wrap; justify-content:flex-end;
+  max-height:0; opacity:0; padding:0 12px; overflow:hidden;
+  border-radius:14px; background:rgba(9,12,20,.9);
+  border:1px solid rgba(255,255,255,.1);
+  backdrop-filter:blur(16px) saturate(150%); -webkit-backdrop-filter:blur(16px) saturate(150%);
+  box-shadow:0 26px 56px -30px #000, 0 0 50px -34px rgba(245,166,91,.9);
+  transform:translateY(10px) scale(.98); transform-origin:100% 100%; pointer-events:none;
+  transition:max-height .42s cubic-bezier(.22,1,.36,1), opacity .3s ease, transform .42s cubic-bezier(.22,1,.36,1), padding .3s;
+}
+.dock.panel-open .dock-panel{ max-height:120px; opacity:1; padding:10px 12px; transform:none; pointer-events:auto; }
+.dock .grp{ display:flex; align-items:center; gap:8px; }
+.dock .glab{ font-family:var(--mono); font-size:10px; letter-spacing:.16em; text-transform:uppercase; color:var(--dim); }
+.seg{ display:flex; gap:2px; padding:2px; border-radius:9px; background:rgba(255,255,255,.05); border:1px solid rgba(255,255,255,.07); }
+.seg button{
+  font-family:var(--mono); font-size:11px; letter-spacing:.02em; padding:5px 9px; border-radius:7px;
+  border:none; background:transparent; color:#9aa5bd; cursor:pointer; transition:.26s;
+}
+.seg button:hover{ color:#e6ecff; }
+.seg button.on{ color:#0a0f18; background:linear-gradient(135deg,#ffd9a8,#c4b5fd); box-shadow:0 0 22px -10px rgba(245,166,91,1); }
+@media (max-width:720px){ .dock{ bottom:12px; } .dock .glab{ display:none; } .seg button{ font-size:10px; padding:5px 7px; } .dock-toggle{ font-size:10px; padding:7px 11px; } }
+
+/* ---------- footer ---------- */
+footer{ position:relative; z-index:1; border-top:1px solid rgba(255,255,255,.06); padding:44px 0 96px; }
+.foot-in{ display:flex; flex-wrap:wrap; gap:18px; justify-content:space-between; align-items:center; }
+.foot-in p{ margin:0; font-size:13px; color:var(--dim); }
+.foot-in .mono{ font-size:11.5px; color:#4f5a73; }
+
+@media (prefers-reduced-motion: reduce){
+  *, *::before, *::after{ animation-duration:.001ms !important; animation-iteration-count:1 !important; transition-duration:.001ms !important; }
+  html{ scroll-behavior:auto; }
+  .reveal{ opacity:1; transform:none; filter:none; }
+}
+
+/* ---- narrow-screen safety: long words must never widen a grid column ---- */
+.hero-copy, .hero-vis, .hero-grid > *, .sim > *, .trace-grid > *, .grid > *, .wrap > *, .card{ min-width:0; }
+.hero h1{ font-size:clamp(31px, 8.6vw, 82px); overflow-wrap:anywhere; }
+.hero h1 .file{ display:inline-block; }
+.chip{ max-width:100%; overflow-wrap:anywhere; }
+.code pre, .stream, .term-body, .tc-body{ max-width:100%; }
+.brand{ overflow:hidden; text-overflow:ellipsis; }
+@media (max-width:520px){
+  .wrap{ width:calc(100% - 28px); }
+  .chips{ gap:6px; }
+  .chip{ font-size:11px; }
+  .section{ padding:calc(62px * var(--sp)) 0; }
+}
+
+
+@media (max-width:1020px){
+  .orbit{ display:none; }
+  .hero-vis{ overflow:hidden; }
+  .hero-grid{ gap:34px; }
+}
+@media (max-width:520px){
+  .verdict-card{ padding:18px; }
+  .rmap{ gap:5px; }
+  .rtile{ width:32px; height:32px; font-size:11.5px; border-radius:9px; }
+}
+
+
+@media (max-width:520px){
+  .brand{ flex:0 0 auto; max-width:34vw; }
+  .nav-in{ gap:6px; }
+  .nav-links a{ padding:6px 8px; font-size:12px; }
+}
+
+
+/* ================= Bin2dec components ================= */
+.bits{ display:flex; flex-direction:column; gap:6px; }
+.bitrow{
+  display:grid; grid-template-columns:30px 1fr auto; gap:10px; align-items:center;
+  padding:7px 10px; border-radius:10px;
+  background:rgba(255,255,255,.028); border:1px solid rgba(255,255,255,.07);
+  opacity:0; transform:translateY(7px);
+}
+.bitrow.in{ opacity:1; transform:none; transition:opacity .45s ease, transform .45s cubic-bezier(.22,1,.36,1), border-color .3s, background .3s; transition-delay:var(--bd,0ms); }
+.bitrow.hot{ border-color:rgba(245,166,91,.45); background:rgba(245,166,91,.08); }
+.bitrow.bad{ border-color:rgba(248,113,113,.45); background:rgba(248,113,113,.08); }
+.bitrow .digit{
+  width:28px; height:28px; display:grid; place-items:center; border-radius:7px;
+  font-family:var(--mono); font-size:14px; font-weight:700;
+}
+.digit.one{ background:linear-gradient(140deg,#ffe0b8,#f5a65b); color:#241405; box-shadow:0 0 22px -10px rgba(245,166,91,1); }
+.digit.zero{ background:rgba(255,255,255,.05); color:#7c879e; border:1px solid rgba(255,255,255,.1); font-weight:500; }
+.digit.bad{ background:linear-gradient(140deg,#fecaca,#f87171); color:#2a0b0b; }
+.bitrow .expr{ font-family:var(--mono); font-size:12px; color:#c6d0e6; line-height:1.35; }
+.bitrow .expr i{ font-style:normal; color:#8b96ae; }
+.bitrow .val{ font-family:var(--mono); font-size:13.5px; color:#ffc98b; text-align:right; white-space:nowrap; }
+.bitrow .val.small{ font-size:11.5px; color:#6f7a92; }
+
+.odo{
+  display:flex; align-items:baseline; gap:14px; padding:14px 16px; border-radius:12px;
+  background:linear-gradient(120deg, rgba(245,166,91,.1), rgba(196,181,253,.06));
+  border:1px solid rgba(245,166,91,.24);
+}
+.odo .lab{ font-family:var(--mono); font-size:10.5px; letter-spacing:.16em; text-transform:uppercase; color:#a08c73; }
+.odo .num{
+  font-family:var(--mono); font-size:clamp(28px,4vw,42px); letter-spacing:-.02em; line-height:1;
+  background:linear-gradient(100deg,#ffe7c8,#f5a65b 45%,#c4b5fd);
+  -webkit-background-clip:text; background-clip:text; color:transparent;
+}
+.odo .eq{ margin-left:auto; font-family:var(--mono); font-size:12px; color:#8b96ae; }
+
+/* recursion frames */
+.frames{ display:grid; gap:6px; margin-top:8px; }
+.mframe{
+  display:flex; align-items:center; gap:10px; padding:8px 11px; border-radius:9px;
+  font-family:var(--mono); font-size:11.8px; color:#98a3ba;
+  background:rgba(255,255,255,.025); border:1px solid rgba(255,255,255,.06);
+  animation:mframeIn .4s cubic-bezier(.22,1,.36,1) both;
+}
+@keyframes mframeIn{ from{ opacity:0; transform:translateX(-8px);} to{opacity:1; transform:none;} }
+.mframe .tag2{ font-size:9.5px; letter-spacing:.12em; text-transform:uppercase; color:#7b8698; border:1px solid rgba(255,255,255,.12); border-radius:5px; padding:1px 5px; }
+.mframe.deep{ border-color:rgba(248,113,113,.4); color:#ffc9c9; background:rgba(248,113,113,.08); }
+.mframe.deep .tag2{ color:#ffb3b3; border-color:rgba(248,113,113,.4); }
+.mframe .mv{ margin-left:auto; color:#c6d0e6; }
+
+/* warning / callout strip */
+.strip-warn{
+  display:flex; gap:10px; align-items:flex-start; padding:11px 13px; border-radius:10px; margin-top:10px;
+  background:rgba(248,113,113,.08); border:1px solid rgba(248,113,113,.28); color:#ffc9c9; font-size:13px;
+}
+.strip-warn b{ color:#fff; }
+
+/* weight chips in hero */
+.weights{ display:flex; gap:8px; margin-top:2px; }
+.wchip{ font-family:var(--mono); font-size:10.5px; color:#8b96ae; width:40px; text-align:center; padding:3px 0; border-radius:6px; background:rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.07); }
+.wchip.on{ color:#241405; background:linear-gradient(140deg,#ffe0b8,#f5a65b); border-color:transparent; font-weight:700; }
+
+/* bit ribbon for hero */
+.ribbon{ display:flex; align-items:center; gap:8px; justify-content:center; margin:6px 0 4px; flex-wrap:wrap; }
+.ribbon .cell{
+  width:40px; height:52px; border-radius:10px; display:grid; place-items:center;
+  font-family:var(--mono); font-size:19px; font-weight:700;
+  animation:cellIn .55s cubic-bezier(.22,1,.36,1) both; animation-delay:var(--cd,0ms);
+}
+@keyframes cellIn{ from{ opacity:0; transform:translateY(10px) rotateX(-40deg);} to{opacity:1; transform:none;} }
+.ribbon .cell.on{ color:#241405; background:linear-gradient(160deg,#ffe7c8,#f5a65b); box-shadow:0 0 26px -10px rgba(245,166,91,1), inset 0 1px 0 rgba(255,255,255,.6); }
+.ribbon .cell.off{ color:#5f6a80; background:rgba(255,255,255,.035); border:1px solid rgba(255,255,255,.09); }
+.ribbon .op{ color:#4b5670; font-family:var(--mono); font-size:13px; }
+.ribbon .res{
+  font-family:var(--mono); font-size:22px; color:#e9eefc; padding-left:10px; border-left:1px solid rgba(255,255,255,.12);
+}
+
+/* --- shared text blocks used on this page --- */
+.stream{
+  font-family:var(--mono); font-size:13px; color:#e8eefc; padding:12px 14px; border-radius:11px;
+  background:rgba(255,255,255,.03); border:1px solid rgba(255,255,255,.08);
+  white-space:pre-wrap; word-break:break-word; line-height:1.75;
+}
+.meter{ display:grid; grid-template-columns:repeat(auto-fit,minmax(110px,1fr)); gap:9px; margin-top:6px; }
+.meter .m{ padding:11px 12px; border-radius:11px; background:rgba(255,255,255,.03); border:1px solid rgba(255,255,255,.07); }
+.meter .m .k{ font-family:var(--mono); font-size:10px; letter-spacing:.13em; text-transform:uppercase; color:var(--dim); }
+.meter .m .v{ font-family:var(--mono); font-size:16px; color:#eef3ff; margin-top:3px; }
+.meter .m .v.hi{ color:#ffc98b; text-shadow:0 0 22px rgba(245,166,91,.55); }
+.delta{ display:grid; gap:9px; margin-top:4px; }
+.drow{ display:grid; grid-template-columns:120px 1fr; gap:12px; align-items:start; font-size:13.6px; }
+.drow .dk{ font-family:var(--mono); font-size:11px; letter-spacing:.1em; text-transform:uppercase; color:var(--dim); padding-top:3px; }
+.drow .dv{ color:var(--muted); }
+.drow .dv b{ color:#f0e6da; }
+@media (max-width:560px){ .drow{ grid-template-columns:1fr; gap:2px; } }
+
+</style>
+</head>
+<body>
+
+<div class="bg-layer" aria-hidden="true">
+  <div class="orb orb-a"></div>
+  <div class="orb orb-b"></div>
+  <div class="orb orb-c"></div>
+  <div class="grid-lines"></div>
+  <div class="noise"></div>
+  <div class="vignette"></div>
+</div>
+
+<header class="nav">
+  <div class="nav-in">
+    <div class="brand"><span class="dot"></span>Bin2dec<span class="sub">/ java dissection</span></div>
+    <nav class="nav-links">
+      <a href="#objective">Objective</a>
+      <a href="#problem">Problem</a>
+      <a href="#logic">Logic</a>
+      <a href="#concepts">Concepts</a>
+      <a href="#experiment">Simulate</a>
+      <a href="#walkthrough">Trace</a>
+      <a href="#edges">Edge cases</a>
+      <a href="#source">Source</a>
+    </nav>
+  </div>
+  <div class="progress" id="progress"></div>
+</header>
+
+<main>
+
+  <!-- ================= HERO ================= -->
+  <section class="hero" id="top">
+    <div class="wrap">
+      <div class="hero-grid">
+        <div class="hero-copy">
+          <div class="kicker"><i></i>Java practice · positional number systems</div>
+          <h1>Bin2dec<span class="file">.java</span></h1>
+          <p class="sub">Peel the last digit, multiply it by a power of two, add it to a running total, drop the digit. Repeat until nothing is left. The powers come from a helper method that recomputes 2<sup>p</sup> from scratch every single time.</p>
+          <div class="chips">
+            <span class="chip">static long powerOfTwo(int power)</span>
+            <span class="chip">while (num1 &gt; 0)</span>
+            <span class="chip">num1 /= 10</span>
+            <span class="chip">main(args) on invalid input</span>
+          </div>
+          <div class="cta">
+            <a class="btn btn-primary" href="#experiment">Run the simulator
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M3 8h9M8.5 4l4 4-4 4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </a>
+            <a class="btn btn-ghost" href="#source">Read the original source</a>
+          </div>
+          <div class="scrollcue"><span class="bar"></span>scroll to dissect</div>
+        </div>
+
+        <div class="hero-vis">
+          <div class="orbit" aria-hidden="true"></div>
+          <div class="verdict-card" id="verdictCard">
+            <div class="vc-head">
+              <span style="text-transform:none;font-size:11.5px">1011 → decimal</span>
+              <span style="color:#ffc98b">11</span>
+            </div>
+            <div class="ribbon" id="heroRibbon"></div>
+            <div class="weights" id="heroWeights" style="justify-content:center;margin-top:10px"></div>
+            <div style="margin-top:16px;padding-top:14px;border-top:1px solid rgba(255,255,255,.07);font-family:var(--mono);font-size:11.5px;color:#a99a86;line-height:1.7" id="heroStats">
+              1·1 + 1·2 + 0·4 + 1·8 = 11
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= 01 OBJECTIVE ================= -->
+  <section class="section" id="objective">
+    <div class="wrap">
+      <div class="head reveal">
+        <div class="eyebrow"><b>01</b> Program objective</div>
+        <h2>What this program is actually trying to do</h2>
+        <p class="lead">Read a number that is supposed to be written in binary, evaluate its positional value in base 10, and print <code class="inl">Decimal : …</code>. If the number is negative, print <code class="inl">Invalid Input.</code> and start the whole program again by calling <code class="inl">main</code> from inside itself.</p>
+      </div>
+
+      <div class="grid g3">
+        <div class="card reveal" style="--d:0ms">
+          <h3><span class="tag">purpose</span></h3>
+          <p>Convert a binary numeral to decimal. The digits are pulled off the number one at a time, right to left, with <code class="inl">% 10</code>. Each digit is multiplied by a weight — 1, 2, 4, 8, 16 … — supplied by <code class="inl">powerOfTwo</code>, and the products are summed into <code class="inl">dec</code>.</p>
+          <p>The program demonstrates <em>positional notation</em>: in base 2 a digit's contribution depends on how far it sits from the right, and that distance is the exponent.</p>
+        </div>
+
+        <div class="card reveal" style="--d:120ms">
+          <h3><span class="tag">learning</span></h3>
+          <p>A second look at digit extraction, this time with a per-position weight instead of a per-position count.</p>
+          <ul>
+            <li>a helper method that computes a power, called once per digit;</li>
+            <li><code class="inl">while</code> + <code class="inl">% 10</code> + <code class="inl">/= 10</code> as a “peel the last digit” idiom;</li>
+            <li>an accumulator (<code class="inl">dec += a</code>) and a position counter (<code class="inl">pow++</code>) advanced together;</li>
+            <li><code class="inl">long</code> instead of <code class="inl">int</code> for the input and the powers;</li>
+            <li>an <code class="inl">if / else if</code> chain with a fall-through <code class="inl">return -1</code>;</li>
+            <li>a method calling <code class="inl">main</code> — recursion used as a restart mechanism.</li>
+          </ul>
+        </div>
+
+        <div class="card reveal" style="--d:240ms">
+          <h3><span class="tag">behaviour</span></h3>
+          <p>Printed first: <code class="inl">Enter no in binary : </code> with <code class="inl">print</code>, so your digits appear on the <em>same</em> line, right after the colon.</p>
+          <p>After a non-negative input: one line, <code class="inl">Decimal : X</code>, then the program ends.</p>
+          <p>After a negative input: <code class="inl">Invalid Input.</code>, then the prompt again — because <code class="inl">main</code> was called recursively, not re-entered by a loop.</p>
+          <p>After a non-numeric token: an <code class="inl">InputMismatchException</code> at line 23, with no message printed by the program.</p>
+        </div>
+      </div>
+
+      <div class="card reveal" style="margin-top:calc(18px * var(--sp))">
+        <h3><span class="tag">continuity</span> <span style="font-weight:500;color:var(--muted);font-size:15px">what changed since PrimesInRange.java</span></h3>
+        <div class="delta" style="margin-top:12px">
+          <div class="drow"><div class="dk">data type</div><div class="dv">The input is now a <b>long</b> and so is every power. Nothing in this program needs the extra range (19 binary digits only reach 524,287), but the choice is harmless — and it does let a 19-digit number be typed without an input error.</div></div>
+          <div class="drow"><div class="dk">helper style</div><div class="dv">Whereas <code class="inl">isPrime</code> returned a <b>boolean</b>, <code class="inl">powerOfTwo</code> returns a <b>value</b> — and it is called <code class="inl">d</code> times for a <code class="inl">d</code>-digit number, each call rebuilding the power from 1 by repeated multiplication.</div></div>
+          <div class="drow"><div class="dk">invalid input</div><div class="dv"><b>main calls main.</b> The retry is recursion, not a <code class="inl">do-while</code>: every rejected attempt leaves a live stack frame and an open <code class="inl">Scanner</code> behind it.</div></div>
+          <div class="drow"><div class="dk">still open</div><div class="dv">Input is still read with a bare <code class="inl">sc.nextLong()</code> — no <code class="inl">hasNextLong()</code>, no <code class="inl">try / catch</code>. And there is no check that each digit is 0 or 1, which is the limitation this page spends most of its time on.</div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= 02 PROBLEM STATEMENT ================= -->
+  <section class="section" id="problem">
+    <div class="wrap">
+      <div class="head reveal">
+        <div class="eyebrow"><b>02</b> Problem statement</div>
+        <h2>The task, stated without the code</h2>
+        <p class="lead">Given a numeral whose digits are meant to be binary, compute the integer it denotes and print it. Given a negative number, refuse and ask again. Given anything that is not a whole number, the program has no plan at all.</p>
+      </div>
+
+      <div class="grid g2" style="align-items:start">
+        <div class="card reveal">
+          <h3>Input, output, rules</h3>
+          <p><strong>Input.</strong> One integer token read with <code class="inl">sc.nextLong()</code>, typed immediately after the prompt on the same line. The digits are supposed to be 0s and 1s, but nothing enforces that: <code class="inl">12</code>, <code class="inl">102</code> and <code class="inl">9999</code> are all accepted and silently evaluated.</p>
+          <p><strong>Output.</strong> For <code class="inl">num ≥ 0</code>: exactly one line, <code class="inl">Decimal : dec</code>. For <code class="inl">num &lt; 0</code>: <code class="inl">Invalid Input.</code>, then a fresh run of the program (a new prompt, and whatever the next input produces).</p>
+          <p><strong>Rules.</strong> Write the number's decimal digits as d<sub>0</sub>, d<sub>1</sub>, … from the right. Its value is Σ d<sub>k</sub> · 2<sup>k</sup>. The loop implements exactly that: extract <code class="inl">num1 % 10</code>, multiply by <code class="inl">powerOfTwo(pow)</code>, add, then <code class="inl">num1 /= 10</code> and <code class="inl">pow++</code>.</p>
+          <p><strong>Constraints.</strong> Digits are read in base 10 (<code class="inl">% 10</code>), so a “digit” can be 0…9. No validation of the binary alphabet. The powers are recomputed per digit, so the work grows quadratically with the digit count. Each negative input costs one extra stack frame permanently.</p>
+        </div>
+
+        <div class="card reveal" style="--d:120ms">
+          <h3>The contract <code class="inl">powerOfTwo</code> offers</h3>
+          <div class="tablewrap tight" style="margin-top:8px">
+            <table>
+              <thead><tr><th class="mono">power</th><th>branch</th><th class="mono">returns</th><th>multiplications</th></tr></thead>
+              <tbody>
+                <tr><td class="mono">0</td><td>first if</td><td class="mono">1</td><td class="mono">0</td></tr>
+                <tr><td class="mono">1</td><td>else if</td><td class="mono">2</td><td class="mono">0</td></tr>
+                <tr><td class="mono">2 … n</td><td>else if (power &gt; 1)</td><td class="mono">2<sup>power</sup></td><td class="mono">power</td></tr>
+                <tr><td class="mono">&lt; 0</td><td>falls past every if</td><td class="mono">−1</td><td class="mono">0</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <p style="margin-top:14px;font-size:14px">The last row is unreachable in a real run. <code class="inl">pow</code> starts at 0 and only ever increments, so <code class="inl">powerOfTwo</code> is never called with a negative argument — the <code class="inl">return -1;</code> at line 16 is dead code, but it is what makes the method compile: Java demands a return on every path.</p>
+          <div class="note">The <code class="inl">power == 1</code> branch is also redundant. Deleting it changes nothing, because the loop with <code class="inl">power = 1</code> multiplies once and also returns 2. It is harmless — just an unnecessary special case.</div>
+        </div>
+      </div>
+
+      <div class="grid g3" style="margin-top:calc(18px * var(--sp))">
+        <div class="card reveal">
+          <h3 style="font-size:15px">The output shape</h3>
+          <div class="stream" style="margin-top:8px">Enter no in binary : <span style="color:#ffc98b">1011</span>
+<span style="color:#eaf6ff">Decimal : 11</span></div>
+          <p style="font-size:13.5px;margin-top:12px">Note the difference from the previous program: this prompt uses <code class="inl">print</code>, so the typed number lands on the <strong>same</strong> line — and there are no blank spacer lines anywhere.</p>
+        </div>
+        <div class="card reveal" style="--d:100ms">
+          <h3 style="font-size:15px">The invalid path</h3>
+          <div class="stream" style="margin-top:8px">Enter no in binary : <span style="color:#ffc98b">-101</span>
+<span style="color:#fca5a5">Invalid Input.</span>
+Enter no in binary : <span style="color:#ffc98b">1011</span>
+<span style="color:#eaf6ff">Decimal : 11</span></div>
+          <p style="font-size:13.5px;margin-top:12px">The second prompt is a <em>new</em> <code class="inl">main</code> frame, not a repeat of the loop. The line break before it comes from <code class="inl">println</code> in the invalid branch.</p>
+        </div>
+        <div class="card reveal" style="--d:200ms">
+          <h3 style="font-size:15px">Work per digit count</h3>
+          <div class="meter" style="margin-top:8px">
+            <div class="m"><div class="k">digits d</div><div class="v">loop passes</div></div>
+            <div class="m"><div class="k">powerOfTwo calls</div><div class="v hi">d</div></div>
+            <div class="m"><div class="k">× operations</div><div class="v">d(d−1)/2</div></div>
+          </div>
+          <p style="font-size:13.5px;margin-top:12px">For <code class="inl">1011</code>: 4 loop passes, 4 helper calls, and 2 + 3 = <strong>5</strong> multiplications inside the helper (the powers 0 and 1 return immediately).</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= 03 CORE LOGIC ================= -->
+  <section class="section" id="logic">
+    <div class="wrap">
+      <div class="head reveal">
+        <div class="eyebrow"><b>03</b> Core logic &amp; approach</div>
+        <h2>Weights, not counters</h2>
+        <p class="lead">The whole conversion is four statements inside one loop. Each pass takes the rightmost digit, prices it by its position, adds the price, and removes the digit. The helper exists only to answer “what is 2 to the power of this position?”.</p>
+      </div>
+
+      <div class="card reveal" style="margin-bottom:calc(20px * var(--sp))">
+        <h3 style="margin-bottom:12px">One pass of the loop, dissected</h3>
+        <div class="code" style="font-size:12.6px">
+          <div class="cb"><span class="fname"><i></i>lines 29–34</span><span class="mono" style="font-size:11px;color:#5c6880">repeated while num1 &gt; 0</span></div>
+          <pre><span class="tok-k">while</span> (num1 &gt; 0) {
+    <span class="tok-k">long</span> a = (num1 % 10) * powerOfTwo(pow);   <span class="tok-c">// ① take the digit, price it</span>
+    pow++;                                    <span class="tok-c">// ② the next digit is worth twice as much</span>
+    num1 /= 10;                               <span class="tok-c">// ③ throw the digit away</span>
+    dec += a;                                 <span class="tok-c">// ④ add the price to the total</span>
+}</pre>
+        </div>
+        <div class="grid g2" style="margin-top:16px;align-items:start">
+          <div>
+            <p style="font-size:14px"><strong>①</strong> <code class="inl">num1 % 10</code> isolates the last decimal digit — and <code class="inl">powerOfTwo(pow)</code> supplies its weight. For <code class="inl">1011</code> the first product is <code class="inl">1 × powerOfTwo(0) = 1 × 1</code>.</p>
+            <p style="font-size:14px"><strong>②</strong> <code class="inl">pow</code> is the <em>position</em> of the next digit. Because we always read right to left, it just increments: 0, 1, 2, 3.</p>
+          </div>
+          <div>
+            <p style="font-size:14px"><strong>③</strong> Integer division by 10 deletes the digit we just used: 1011 → 101 → 10 → 1 → 0. The loop ends when nothing is left, so its length is exactly the digit count.</p>
+            <p style="font-size:14px"><strong>④</strong> <code class="inl">dec</code> is a plain accumulator. Order does not matter for addition, so the fact that we visit the digits in reverse is invisible in the result.</p>
+          </div>
+        </div>
+        <p class="src-note">Because the digits are extracted in base 10, the value of a digit can be 0 … 9 — the program never checks that it is 0 or 1. That single omission is the biggest difference between what the program says and what it does.</p>
+      </div>
+
+      <div class="grid g2" style="align-items:start">
+        <div class="reveal">
+          <div class="flow">
+            <div class="fnode">
+              <div class="cond">1 · read num</div>
+              <div class="act"><code class="inl">long num = sc.nextLong();</code> — the only input, read before anything is validated.</div>
+            </div>
+            <div class="arrow">↓</div>
+            <div class="fnode key">
+              <div class="cond">2 · while num1 &gt; 0</div>
+              <div class="act">Digit extraction loop. Four statements per pass; number of passes = number of decimal digits.</div>
+            </div>
+            <div class="arrow">↓ per pass</div>
+            <div class="fnode">
+              <div class="cond">3 · powerOfTwo(pow)</div>
+              <div class="act"><code class="inl">pow = 0</code> → return 1 · <code class="inl">pow = 1</code> → return 2 · otherwise multiply 1 by 2 exactly <code class="inl">pow</code> times.</div>
+            </div>
+            <div class="arrow">↓</div>
+            <div class="fnode bad">
+              <div class="cond">4 · num &lt; 0 ?</div>
+              <div class="act">Yes → print <code class="inl">Invalid Input.</code> and <strong>call main again</strong>. The loop never ran, because <code class="inl">num1 &gt; 0</code> was false from the start, so <code class="inl">dec</code> is still 0 — and that 0 is thrown away.</div>
+            </div>
+            <div class="arrow">↓ no</div>
+            <div class="fnode">
+              <div class="cond">5 · print "Decimal : " + dec</div>
+              <div class="act">Then <code class="inl">sc.close()</code> and the frame ends.</div>
+            </div>
+          </div>
+          <p class="src-note">The negative check happens <em>after</em> the loop, not before it. It works only because a negative <code class="inl">num1</code> makes the loop condition false immediately.</p>
+        </div>
+
+        <div class="reveal" style="--d:120ms">
+          <h3 style="margin-bottom:12px">Why the maths is right</h3>
+          <p>Positional notation says a numeral's value is the sum of each digit times the base raised to the digit's distance from the right. In base 2 the weights are 1, 2, 4, 8, 16 … — exactly what <code class="inl">powerOfTwo(0..d−1)</code> produces.</p>
+          <p>The loop visits the digits in the order 1s, 2s, 4s, 8s … and adds the contributions, so the total is the same as reading left to right. For <code class="inl">1011</code>:</p>
+          <div class="tablewrap tight" style="margin:14px 0">
+            <table>
+              <thead><tr><th class="mono">pass</th><th class="mono">digit</th><th class="mono">pow</th><th class="mono">weight</th><th class="mono">product</th><th class="mono">dec</th></tr></thead>
+              <tbody>
+                <tr><td class="mono">1</td><td class="mono">1011 % 10 = 1</td><td class="mono">0</td><td class="mono">1</td><td class="mono">1</td><td class="mono">1</td></tr>
+                <tr><td class="mono">2</td><td class="mono">101 % 10 = 1</td><td class="mono">1</td><td class="mono">2</td><td class="mono">2</td><td class="mono">3</td></tr>
+                <tr><td class="mono">3</td><td class="mono">10 % 10 = 0</td><td class="mono">2</td><td class="mono">4</td><td class="mono">0</td><td class="mono">3</td></tr>
+                <tr><td class="mono">4</td><td class="mono">1 % 10 = 1</td><td class="mono">3</td><td class="mono">8</td><td class="mono">8</td><td class="mono">11</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <p>A zero digit contributes nothing but still consumes a position — that is why <code class="inl">pow</code> is incremented before <code class="inl">num1</code> is divided: if it were not, <code class="inl">1011</code> and <code class="inl">111</code> would both total 11.</p>
+          <h3 style="margin-top:22px">Why the helper is called so often</h3>
+          <p><code class="inl">powerOfTwo</code> has no memory. Asking for 2<sup>3</sup> means multiplying 1 by 2 three times, from scratch, even though the previous call already computed 2<sup>2</sup>. For 4 digits that is 5 multiplications; for 19 digits it is 170. A single variable — “the weight of the current position” — doubled after each pass would do the same job with one multiplication per digit.</p>
+          <div class="note ok"><b>What is genuinely good here.</b> The digit loop is textbook: <code class="inl">% 10</code> to read, <code class="inl">/ 10</code> to advance, and a condition that terminates naturally. That idiom will come back in palindrome checks, digit sums, and base conversions in the other direction.</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= 04 CONCEPTS ================= -->
+  <section class="section" id="concepts">
+    <div class="wrap">
+      <div class="head reveal">
+        <div class="eyebrow"><b>04</b> Key Java concepts</div>
+        <h2>What the code is actually demonstrating</h2>
+        <p class="lead">Nine ideas are load-bearing here. Each card says what the concept does <em>in this program</em>, why it is used, and what to carry forward.</p>
+      </div>
+
+      <div class="grid g3">
+        <div class="card reveal">
+          <h3><span class="tag">long data type</span></h3>
+          <p>Both the input and <code class="inl">powerOfTwo</code>'s return type are <code class="inl">long</code>. That allows a 19-digit number to be typed instead of 10, but the values produced here never come close to needing it.</p>
+          <p><strong>Why:</strong> defensive choice — 2<sup>p</sup> doubles fast. <strong>Learn:</strong> <code class="inl">long</code> does not protect you from overflow forever; 2<sup>63</sup> is the wall, and repeated doubling reaches it quickly.</p>
+        </div>
+
+        <div class="card reveal" style="--d:80ms">
+          <h3><span class="tag">value-returning method</span></h3>
+          <p><code class="inl">powerOfTwo(int power)</code> takes a position and returns the weight for it. The caller multiplies the two numbers together: <code class="inl">(num1 % 10) * powerOfTwo(pow)</code>.</p>
+          <p><strong>Why:</strong> the exponent logic is separate from the digit logic, so each can be read alone. <strong>Learn:</strong> a method call can appear anywhere a value of its type could — including inside an arithmetic expression.</p>
+        </div>
+
+        <div class="card reveal" style="--d:160ms">
+          <h3><span class="tag">if / else if + fallback</span></h3>
+          <p>Three tests — <code class="inl">== 0</code>, <code class="inl">== 1</code>, <code class="inl">&gt; 1</code> — followed by a bare <code class="inl">return -1;</code> that catches everything else.</p>
+          <p><strong>Why:</strong> the compiler requires a return on every path, and the chain as written does not cover negatives. <strong>Learn:</strong> a final unconditional <code class="inl">return</code> is how you satisfy that rule — but here it also silently encodes “negative power” as −1, which the caller would happily multiply by.</p>
+        </div>
+
+        <div class="card reveal">
+          <h3><span class="tag">for loop as exponentiation</span></h3>
+          <p><code class="inl">for (int i = 0; i &lt; power; i++) a = a * 2;</code> — repeated doubling instead of a library call. It runs <strong>exactly <code class="inl">power</code></strong> times, so <code class="inl">powerOfTwo(3)</code> ends with 8.</p>
+          <p><strong>Why:</strong> it shows what an exponent really is — repeated multiplication. <strong>Learn:</strong> a count-controlled loop is ideal when the number of repetitions <em>is</em> the input, as it is here.</p>
+        </div>
+
+        <div class="card reveal" style="--d:80ms">
+          <h3><span class="tag">while + % + /=</span></h3>
+          <p>The digit loop cannot use a <code class="inl">for</code>, because the number of digits is not known until the number is read. <code class="inl">num1 % 10</code> reads a digit, <code class="inl">num1 /= 10</code> deletes it, and the loop ends when the value reaches 0.</p>
+          <p><strong>Why:</strong> it terminates by itself for every non-negative input. <strong>Learn:</strong> “peel and shift” is the standard decimal-digit idiom — <code class="inl">% 10</code> then <code class="inl">/ 10</code>, always together, always in that order.</p>
+        </div>
+
+        <div class="card reveal" style="--d:160ms">
+          <h3><span class="tag">accumulator + position</span></h3>
+          <p><code class="inl">dec += a</code> accumulates the value; <code class="inl">pow++</code> tracks the position. They are separate variables because they mean different things — one is a sum, the other an index.</p>
+          <p><strong>Why:</strong> mixing them would break the weight progression. <strong>Learn:</strong> a loop often needs two independent “suitcase” variables, one for the answer and one for where you are.</p>
+        </div>
+
+        <div class="card reveal">
+          <h3><span class="tag">recursion as retry</span></h3>
+          <p><code class="inl">main(args);</code> inside the invalid branch starts a brand-new run: new <code class="inl">Scanner</code>, new <code class="inl">num</code>, new prompt. The old frame stays alive, waiting for the inner one to return.</p>
+          <p><strong>Why:</strong> it reuses the whole program as its own retry mechanism. <strong>Learn:</strong> recursion is a stack of unfinished work — each retry costs a frame and a Scanner that is only closed when the stack unwinds.</p>
+        </div>
+
+        <div class="card reveal" style="--d:80ms">
+          <h3><span class="tag">Scanner · nextLong</span></h3>
+          <p><code class="inl">sc.nextLong()</code> parses one token as a <code class="inl">long</code>. Letters, decimals, or a number beyond <code class="inl">long</code>'s range throw <code class="inl">InputMismatchException</code>, which nothing catches.</p>
+          <p><strong>Why:</strong> it accepts bigger inputs than <code class="inl">nextInt()</code>. <strong>Learn:</strong> <code class="inl">hasNextLong()</code> exists so you can test before you read — and every recursion level opens its own Scanner, which is a resource leak you would not get from a loop.</p>
+        </div>
+
+        <div class="card reveal" style="--d:160ms">
+          <h3><span class="tag">print vs println</span></h3>
+          <p>The prompt uses <code class="inl">print</code> so the typed digits sit on the same line; the results use <code class="inl">println</code> so each ends cleanly. In the invalid branch the <code class="inl">println</code> also supplies the line break that puts the next prompt on a fresh line.</p>
+          <p><strong>Why:</strong> prompts and results have different layout needs. <strong>Learn:</strong> <code class="inl">print</code> leaves the cursor where it is — which is exactly what you want when you are about to ask for input.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= 05 EXPERIMENT ================= -->
+  <section class="section" id="experiment">
+    <div class="wrap">
+      <div class="head reveal">
+        <div class="eyebrow"><b>05</b> Interactive experimentation</div>
+        <h2>Run the program without leaving the page</h2>
+        <p class="lead">The simulator reproduces the submitted logic: the same prompt on the same line, the same weight table, the same silent acceptance of digits above 1, and the same <strong>recursive restart</strong> after a negative number — a fresh frame each time, with the depth count shown.</p>
+      </div>
+
+      <div class="sim reveal">
+        <div>
+          <div class="term">
+            <div class="term-bar">
+              <div class="dots" aria-hidden="true"><i></i><i></i><i></i></div>
+              <div class="tt">Bin2dec — console</div>
+              <div class="live"><i></i>live simulation</div>
+            </div>
+            <div class="term-body" id="termBody" aria-live="polite"></div>
+            <form class="term-form" id="termForm" autocomplete="off">
+              <span class="pfx">›</span>
+              <input id="termInput" type="text" inputmode="numeric" placeholder="type a number and press Enter" aria-label="Binary number" />
+              <button type="submit">send</button>
+            </form>
+          </div>
+
+          <div class="presets">
+            <button class="preset" data-v="1011" type="button">1011<small>normal → 11</small></button>
+            <button class="preset" data-v="1111" type="button">1111<small>→ 15</small></button>
+            <button class="preset" data-v="100000" type="button">100000<small>→ 32</small></button>
+            <button class="preset" data-v="0" type="button">0<small>edge</small></button>
+            <button class="preset" data-v="102" type="button">102<small>digit 2</small></button>
+            <button class="preset" data-v="9999" type="button">9999<small>all 9s</small></button>
+            <button class="preset" data-v="1111111111111111111" type="button">19 ones<small>many digits</small></button>
+            <button class="preset" data-v="-101" type="button">−101<small>invalid → retry</small></button>
+            <button class="preset" data-v="abc" type="button">abc<small>not a number</small></button>
+            <button class="preset ghost" id="resetTerm" type="button">↺ restart program</button>
+          </div>
+
+          <div class="card reveal" style="margin-top:calc(18px * var(--sp))">
+            <div style="display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:10px;margin-bottom:12px">
+              <h3 style="font-size:15px;margin:0">Digit breakdown <span class="mono" style="font-size:11.5px;color:var(--dim)" id="bitsMeta">— no run yet</span></h3>
+              <span class="mono" style="font-size:11px;color:var(--dim)">digit × 2<sup>pow</sup> = contribution</span>
+            </div>
+            <div class="bits" id="bits"></div>
+            <div class="odo" style="margin-top:12px">
+              <span class="lab">dec</span>
+              <span class="num" id="odoNum">—</span>
+              <span class="eq" id="odoEq">accumulated by dec += a</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="state">
+          <div class="stat"><span class="lab">input · num</span><span class="val" id="stN">—</span></div>
+          <div class="stat"><span class="lab">branch taken</span><span class="val" id="stBranch" style="font-size:12.5px">—</span></div>
+          <div class="stat"><span class="lab">loop passes (digits)</span><span class="val" id="stPass">—</span></div>
+          <div class="stat"><span class="lab">powerOfTwo calls</span><span class="val" id="stCalls">—</span></div>
+          <div class="stat"><span class="lab">× multiplications</span><span class="val hot" id="stMult">—</span></div>
+          <div class="stat"><span class="lab">dec printed</span><span class="val" id="stDec">—</span></div>
+          <div class="stat note-stat"><span class="lab">recursion depth</span><span class="val" id="stDepth">1 · main only</span></div>
+          <div class="note" style="margin:0">
+            <b>Reading the panel.</b> Passes, calls and multiplications are never printed by the program — they are counted here so the cost of the helper is visible. The digit breakdown is a visualisation of <code class="inl">dec += a</code>, not console output.
+          </div>
+        </div>
+      </div>
+
+      <div class="grid g2" style="margin-top:calc(20px * var(--sp))">
+        <div class="card reveal">
+          <h3 style="font-size:15px">Normal input — <span class="mono" style="color:#ffc98b">1011</span></h3>
+          <p style="font-size:13.8px">Four passes, weights 1, 2, 4, 8, and the three non-zero digits contribute 1 + 2 + 8 = 11. The zero digit still consumed the weight 4 — it just multiplied it to nothing. Five multiplications happen inside the helper, none of them visible.</p>
+        </div>
+        <div class="card reveal" style="--d:80ms">
+          <h3 style="font-size:15px">Edge — <span class="mono" style="color:#ffc98b">0</span></h3>
+          <p style="font-size:13.8px"><code class="inl">num1 = 0</code> makes the loop condition false immediately: zero passes, zero helper calls, <code class="inl">dec</code> stays at its initial 0, and the program prints <code class="inl">Decimal : 0</code>. It is the only input that reaches the output without ever entering the loop — and it happens to be correct, because 0 in binary is 0.</p>
+        </div>
+        <div class="card reveal" style="--d:160ms">
+          <h3 style="font-size:15px">The limitation — <span class="mono" style="color:#ffc79b">102</span>, <span class="mono" style="color:#ffc79b">9999</span></h3>
+          <p style="font-size:13.8px">These are not binary numbers, yet the program evaluates them without complaint: <code class="inl">102</code> becomes <strong>6</strong> and <code class="inl">9999</code> becomes <strong>135</strong>. Nothing checks that a digit is 0 or 1, so any decimal digit is treated as a legitimate coefficient of a power of two. A real converter must reject these.</p>
+        </div>
+        <div class="card reveal" style="--d:240ms">
+          <h3 style="font-size:15px">Invalid — <span class="mono" style="color:#ffc79b">−101</span> then <span class="mono" style="color:#ffc79b">abc</span></h3>
+          <p style="font-size:13.8px">A negative number skips the loop, prints <code class="inl">Invalid Input.</code>, and calls <code class="inl">main</code> again — watch the depth counter climb with every rejection. <code class="inl">abc</code> is not a rejection: <code class="inl">nextLong()</code> throws at line 23 and the program dies on whichever frame is currently on top, leaving every outer frame (and its Scanner) still open.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= 06 WALKTHROUGH ================= -->
+  <section class="section" id="walkthrough">
+    <div class="wrap">
+      <div class="head reveal">
+        <div class="eyebrow"><b>06</b> Step-by-step execution</div>
+        <h2>Trace it one instruction at a time</h2>
+        <p class="lead">The stepper expands the helper calls too: when <code class="inl">powerOfTwo(2)</code> is invoked you can see the two multiplications inside it, and the value handed back to the loop. The call stack shows whether control is in <code class="inl">main</code> or in the helper.</p>
+      </div>
+
+      <div class="trace reveal">
+        <div class="trace-bar">
+          <label class="mono" for="traceCase" style="color:var(--dim);font-size:11.5px;letter-spacing:.14em;text-transform:uppercase">case</label>
+          <select id="traceCase">
+            <option value="1011" selected>1011 — the worked example</option>
+            <option value="1111">1111 — all ones</option>
+            <option value="101">101 — three digits</option>
+            <option value="100000">100000 — one at the top</option>
+            <option value="0">0 — loop never runs</option>
+            <option value="102">102 — a digit of 2</option>
+            <option value="-101">−101 — recursive retry</option>
+          </select>
+          <button class="tbtn" id="tPrev" type="button">◀ prev</button>
+          <button class="tbtn primary" id="tPlay" type="button">▶ play</button>
+          <button class="tbtn" id="tNext" type="button">next ▶</button>
+          <button class="tbtn" id="tReset" type="button">↺ reset</button>
+          <span class="trace-count" id="traceCount">step 1 / 1</span>
+        </div>
+
+        <div class="trace-grid">
+          <div class="now-card">
+            <div class="stepno" id="stepNo">step 1</div>
+            <h3 id="stepTitle">—</h3>
+            <p class="detail" id="stepDetail">—</p>
+            <div class="vars" id="stepVars"></div>
+            <div class="stack">
+              <div class="sh"><span>call stack</span><b id="stackState">main running</b></div>
+              <div class="frame" id="frameMain"><span class="name">main(String[] args)</span><span class="meta">num · num1 · pow · dec</span></div>
+              <div class="frame" id="framePow"><span class="name">powerOfTwo(int power)</span><span class="meta">power · a · i</span></div>
+            </div>
+          </div>
+          <div>
+            <div class="tc-head">console output so far</div>
+            <div class="tc-body" id="traceOut"></div>
+            <div class="tc-head" style="margin-top:14px">running total</div>
+            <div class="stream" id="traceSum" style="min-height:52px"><span style="color:#4f5a73">dec = 0</span></div>
+            <div class="rail" id="traceRail"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= 07 OUTPUT ================= -->
+  <section class="section" id="output">
+    <div class="wrap">
+      <div class="head reveal">
+        <div class="eyebrow"><b>07</b> Output explanation</div>
+        <h2>Where every printed character comes from</h2>
+        <p class="lead">Only <code class="inl">main</code> prints. <code class="inl">powerOfTwo</code> is completely silent — it returns numbers, and those numbers never reach the screen except as part of the final sum.</p>
+      </div>
+
+      <div class="grid g2" style="align-items:start">
+        <div class="reveal">
+          <div class="code">
+            <div class="cb"><span class="fname"><i></i>console — input 1011</span><span class="mono" style="font-size:11px;color:#5c6880">decimal 11</span></div>
+            <pre><span class="tok-k">Enter no in binary : </span><span class="tok-n">1011</span>
+<span class="tok-t">Decimal : 11</span></pre>
+          </div>
+          <ul style="margin-top:16px;font-size:14px">
+            <li><strong>Line 1</strong> — <code class="inl">System.out.print("Enter no in binary : ")</code> at line 22. <code class="inl">print</code>, not <code class="inl">println</code>, so no newline is written and your digits continue the same line.</li>
+            <li><strong>Line 2</strong> — <code class="inl">println("Decimal : " + dec)</code> at line 40. The literal contains the space after the colon; the concatenation supplies the value.</li>
+            <li><strong>Nothing else.</strong> No blank lines, no echo of the digits by the program — the <code class="inl">1011</code> you see in a terminal is the terminal showing what you typed.</li>
+          </ul>
+        </div>
+
+        <div class="reveal" style="--d:120ms">
+          <h3 style="font-size:16px">Printed vs returned vs internal</h3>
+          <div class="tablewrap tight" style="margin-top:8px">
+            <table>
+              <thead><tr><th>quantity</th><th>kind</th><th>visible?</th></tr></thead>
+              <tbody>
+                <tr><td class="mono">"Decimal : 11"</td><td>console output (println)</td><td><span class="pill ok">yes</span></td></tr>
+                <tr><td class="mono">"Invalid Input."</td><td>console output (println)</td><td><span class="pill ok">yes</span></td></tr>
+                <tr><td class="mono">powerOfTwo(pow)</td><td>return value (long)</td><td><span class="pill neu">used inside *</span></td></tr>
+                <tr><td class="mono">a, dec, pow, num1</td><td>local variables</td><td><span class="pill bad">never shown</span></td></tr>
+                <tr><td class="mono">the digit d itself</td><td>intermediate</td><td><span class="pill bad">never shown</span></td></tr>
+                <tr><td class="mono">number of passes</td><td>not tracked</td><td><span class="pill bad">not in the program</span></td></tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="note" style="margin-top:16px">Because the weights are never printed, a wrong answer is impossible to diagnose from the transcript alone: <code class="inl">102</code> and <code class="inl">110</code> both look like ordinary inputs and produce <code class="inl">6</code> and <code class="inl">6</code> — two different numerals, the same output, no explanation.</div>
+        </div>
+      </div>
+
+      <div class="grid g3" style="margin-top:calc(20px * var(--sp))">
+        <div class="card reveal">
+          <h3 style="font-size:15px">Input 0 — the zero passes case</h3>
+          <div class="code" style="font-size:12.5px"><pre><span class="tok-k">Enter no in binary : </span>0
+<span class="tok-t">Decimal : 0</span></pre></div>
+          <p style="font-size:13.5px;margin-top:12px">The loop is skipped entirely, so <code class="inl">dec</code> is still the 0 it was initialised with. The program cannot distinguish “0 was entered” from “the loop never ran” — both produce the same line.</p>
+        </div>
+        <div class="card reveal" style="--d:100ms">
+          <h3 style="font-size:15px">Input 102 — silently wrong</h3>
+          <div class="code" style="font-size:12.5px"><pre><span class="tok-k">Enter no in binary : </span>102
+<span class="tok-t">Decimal : 6</span></pre></div>
+          <p style="font-size:13.5px;margin-top:12px">Weights are 1, 2, 4 against digits 2, 0, 1 → 2·1 + 0·2 + 1·4 = 6. There is no error and no warning; the number 2 was simply used as a coefficient. Compare <code class="inl">110</code>, which legitimately equals 6.</p>
+        </div>
+        <div class="card reveal" style="--d:200ms">
+          <h3 style="font-size:15px">Input −101 — the recursion</h3>
+          <div class="code" style="font-size:12.5px"><pre><span class="tok-k">Enter no in binary : </span>-101
+<span class="tok-err">Invalid Input.</span>
+<span class="tok-k">Enter no in binary : </span>101
+<span class="tok-t">Decimal : 5</span></pre></div>
+          <p style="font-size:13.5px;margin-top:12px">Two frames existed: the outer one is suspended at line 38, the inner one runs the second prompt. Only when the inner <code class="inl">main</code> returns do the outer <code class="inl">sc.close()</code> and the end of <code class="inl">main</code> execute.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= 08 EDGE CASES ================= -->
+  <section class="section" id="edges">
+    <div class="wrap">
+      <div class="head reveal">
+        <div class="eyebrow"><b>08</b> Edge cases, correctness &amp; limitations</div>
+        <h2>What the implementation does — and what it does not</h2>
+        <p class="lead">The positional arithmetic is right for every numeral made of 0s and 1s. Everything else — digits above 1, negative retries, non-numeric tokens — is where the program stops matching its own name.</p>
+      </div>
+
+      <div class="tablewrap reveal">
+        <table>
+          <thead>
+            <tr><th class="mono">input</th><th>what happens</th><th class="mono">passes</th><th class="mono">dec</th><th>printed</th><th>verdict</th></tr>
+          </thead>
+          <tbody>
+            <tr><td class="mono">0</td><td>loop skipped, dec keeps its initial value</td><td class="mono">0</td><td class="mono">0</td><td class="mono">Decimal : 0</td><td><span class="pill ok">correct</span></td></tr>
+            <tr><td class="mono">1</td><td>one pass, weight 1</td><td class="mono">1</td><td class="mono">1</td><td class="mono">Decimal : 1</td><td><span class="pill ok">correct</span></td></tr>
+            <tr><td class="mono">10</td><td>digits 0, 1 → 0·1 + 1·2</td><td class="mono">2</td><td class="mono">2</td><td class="mono">Decimal : 2</td><td><span class="pill ok">correct</span></td></tr>
+            <tr><td class="mono">1011</td><td>1 + 2 + 0 + 8</td><td class="mono">4</td><td class="mono">11</td><td class="mono">Decimal : 11</td><td><span class="pill ok">correct</span></td></tr>
+            <tr><td class="mono">100000</td><td>five zero digits, then 1·32</td><td class="mono">6</td><td class="mono">32</td><td class="mono">Decimal : 32</td><td><span class="pill ok">correct</span></td></tr>
+            <tr><td class="mono">1111111111111111111</td><td>19 ones → 2¹⁹ − 1</td><td class="mono">19</td><td class="mono">524287</td><td class="mono">Decimal : 524287</td><td><span class="pill ok">correct</span></td></tr>
+            <tr><td class="mono">102</td><td>digit 2 used as a coefficient</td><td class="mono">3</td><td class="mono">6</td><td class="mono">Decimal : 6</td><td><span class="pill bad">silently wrong</span></td></tr>
+            <tr><td class="mono">12</td><td>2·1 + 1·2</td><td class="mono">2</td><td class="mono">4</td><td class="mono">Decimal : 4</td><td><span class="pill bad">silently wrong</span></td></tr>
+            <tr><td class="mono">9999</td><td>9·(1+2+4+8)</td><td class="mono">4</td><td class="mono">135</td><td class="mono">Decimal : 135</td><td><span class="pill bad">silently wrong</span></td></tr>
+            <tr><td class="mono">−101</td><td>loop skipped, <code class="inl">main</code> called again</td><td class="mono">0</td><td class="mono">—</td><td class="mono">Invalid Input.</td><td><span class="pill neu">intended</span></td></tr>
+            <tr><td class="mono">−1 … ×20000</td><td>20000 nested frames</td><td class="mono">0</td><td class="mono">—</td><td class="mono">StackOverflowError</td><td><span class="pill bad">crash</span></td></tr>
+            <tr><td class="mono">2.5</td><td><code class="inl">nextLong()</code> throws at line 23</td><td class="mono">—</td><td class="mono">—</td><td class="mono">InputMismatchException</td><td><span class="pill bad">crash</span></td></tr>
+            <tr><td class="mono">9223372036854775808</td><td>one past <code class="inl">Long.MAX_VALUE</code></td><td class="mono">—</td><td class="mono">—</td><td class="mono">InputMismatchException</td><td><span class="pill bad">crash</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="grid g2" style="margin-top:calc(20px * var(--sp));align-items:start">
+        <div class="card reveal">
+          <h3>Limitations in this implementation</h3>
+          <ul style="font-size:14.2px">
+            <li><strong>No binary validation.</strong> The loop reads base-10 digits, so 2 … 9 are accepted as coefficients. Any number can be typed and every number gets an answer — most of them meaningless. This is the bug that matters most: the program is named <code class="inl">Bin2dec</code> but converts <em>any</em> decimal-digit numeral as if it were binary.</li>
+            <li><strong><code class="inl">main</code> calls itself instead of looping.</strong> Each invalid input adds a stack frame that stays alive until the innermost run finishes; a few thousand rejections end in <code class="inl">StackOverflowError</code>. A <code class="inl">while</code> around the input would cost nothing.</li>
+            <li><strong>A new Scanner per frame.</strong> Every recursive call constructs another <code class="inl">Scanner(System.in)</code>. Only the innermost is closed while the stack is deep; the outer <code class="inl">close()</code> calls run later, as the frames unwind.</li>
+            <li><strong>Validation happens after the work.</strong> The negative test sits below the loop, and it only works because a negative input makes the loop condition false. Put the same test above the loop and the behaviour would be identical but the intent obvious.</li>
+            <li><strong>The helper recomputes every power.</strong> <code class="inl">powerOfTwo(3)</code> re-multiplies from 1, even though the caller already had 4. Cost is <code class="inl">d(d−1)/2</code> multiplications instead of <code class="inl">d</code>.</li>
+            <li><strong>Dead and redundant branches.</strong> <code class="inl">return -1;</code> is unreachable (<code class="inl">pow</code> is never negative, and 0 and 1 are handled above), and the <code class="inl">power == 1</code> case could be left to the loop.</li>
+            <li><strong>Input is unguarded.</strong> No <code class="inl">hasNextLong()</code>, no <code class="inl">try / catch</code>: a typo produces a stack trace instead of a message, and it happens on whatever frame is innermost at the time.</li>
+            <li><strong>The class name is lower-case in the middle</strong> (<code class="inl">Bin2dec</code>). Legal Java, but the convention is <code class="inl">BinToDec</code> or <code class="inl">BinaryToDecimal</code>.</li>
+          </ul>
+        </div>
+
+        <div class="reveal" style="--d:120ms">
+          <h3>Correctness, stated carefully</h3>
+          <p><strong>For inputs made only of 0s and 1s: correct.</strong> Each pass contributes d·2<sup>k</sup> for the digit at position k, and every position from 0 to the digit count minus one is visited exactly once — so the sum equals the numeral's base-10 value. 0, 1 and 100000 are all handled by the same loop with no special cases.</p>
+          <p><strong>For inputs containing 2 … 9: wrong, but confidently so.</strong> No branch rejects them, so the program returns a plausible number computed from invalid digits. Nothing in the transcript signals the mistake — the same class of silent wrongness as <code class="inl">Integer.parseInt</code> never having been attempted. A real converter needs a digit test inside the loop, for example <code class="inl">if (num1 % 10 &gt; 1) → invalid</code>.</p>
+          <p><strong>For negative numbers: rejected, by recursion.</strong> The output is correct as a message, but the mechanism is fragile: the retry is unbounded, the resource cost grows with each rejection, and the eventual failure mode is a <code class="inl">StackOverflowError</code> rather than a graceful exit.</p>
+          <p><strong>For non-numeric input: not handled.</strong> <code class="inl">nextLong()</code> throws before any of the program's own logic runs.</p>
+          <div class="note warn"><b>Not modified.</b> Section 11 reproduces the submitted file exactly. Every fix suggested above is discussion, not a rewrite of your code.</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= 09 COMPLEXITY ================= -->
+  <section class="section" id="complexity">
+    <div class="wrap">
+      <div class="head reveal">
+        <div class="eyebrow"><b>09</b> Time &amp; space complexity</div>
+        <h2>Quadratic in the digit count, but tiny in practice</h2>
+        <p class="lead">The loop runs once per digit. The helper, however, rebuilds its power from scratch every time, so the total work is triangular: <code class="inl">0 + 0 + 2 + 3 + … + (d−1)</code> multiplications for a <code class="inl">d</code>-digit number.</p>
+      </div>
+
+      <div class="grid g2" style="align-items:start">
+        <div class="card reveal">
+          <h3>Time — <span class="mono" style="color:#ffc98b">Θ(d²)</span> inside the helper</h3>
+          <p>The <code class="inl">while</code> loop performs <code class="inl">d</code> passes, each calling <code class="inl">powerOfTwo</code> once. That helper does <code class="inl">p</code> multiplications for a power <code class="inl">p ≥ 2</code> (and none for 0 or 1), so the run totals <code class="inl">Σ p = (d−1)d/2 − 1</code> multiplications, plus <code class="inl">d</code> divisions and <code class="inl">d</code> remainders. Asymptotically that is <code class="inl">Θ(d²)</code>.</p>
+          <div class="bars" id="barChart" style="margin-top:18px">
+            <div class="barrow"><span>4 digits</span><div class="bartrack"><div class="barfill" data-w="4"></div></div><span class="ops">5 × ops</span></div>
+            <div class="barrow"><span>6 digits</span><div class="bartrack"><div class="barfill" data-w="10"></div></div><span class="ops">14</span></div>
+            <div class="barrow"><span>10 digits</span><div class="bartrack"><div class="barfill" data-w="28"></div></div><span class="ops">44</span></div>
+            <div class="barrow"><span>15 digits</span><div class="bartrack"><div class="barfill" data-w="60"></div></div><span class="ops">104</span></div>
+            <div class="barrow"><span>19 digits</span><div class="bartrack"><div class="barfill" data-w="100"></div></div><span class="ops">170</span></div>
+          </div>
+          <p class="src-note">Exact multiplication counts for the submitted helper. Doubling the digits roughly quadruples the work — but the absolute numbers are so small (<code class="inl">d ≤ 19</code> for a <code class="inl">long</code>) that the inefficiency is invisible at run time. It is a design lesson, not a performance problem.</p>
+        </div>
+
+        <div class="reveal" style="--d:120ms">
+          <h3>Space — <span class="mono" style="color:#ffc98b">Θ(1)</span> per frame, <span class="mono" style="color:#ffc98b">Θ(k)</span> for k retries</h3>
+          <p>One run of <code class="inl">main</code> needs a handful of scalars — <code class="inl">num</code>, <code class="inl">num1</code>, <code class="inl">pow</code>, <code class="inl">dec</code>, <code class="inl">a</code> — and one <code class="inl">Scanner</code> with a fixed buffer. Nothing grows with the number of digits.</p>
+          <p>The recursion is what changes that: <code class="inl">k</code> rejected inputs leave <code class="inl">k</code> suspended <code class="inl">main</code> frames and <code class="inl">k</code> open Scanners alive simultaneously. Memory is therefore <code class="inl">Θ(k)</code> in the number of retries, and the JVM's default stack depth (thousands of frames) is the hard ceiling.</p>
+          <h3 style="margin-top:22px">What would make it linear</h3>
+          <p>Keep the weight in a variable and double it each pass: <code class="inl">weight = 1; … weight *= 2;</code> — one multiplication per digit, <code class="inl">Θ(d)</code> total, and the helper disappears. The bitwise form <code class="inl">1L &lt;&lt; pow</code> is <code class="inl">O(1)</code> per digit and exact for <code class="inl">pow &lt; 63</code>. Neither changes the output for a single digit; both change how the code reads — one clear shift instead of a loop that re-earns its answer.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= 10 TAKEAWAYS ================= -->
+  <section class="section" id="takeaways">
+    <div class="wrap">
+      <div class="head reveal">
+        <div class="eyebrow"><b>10</b> Takeaways &amp; future connections</div>
+        <h2>What this program teaches</h2>
+      </div>
+
+      <div class="grid g3">
+        <div class="card reveal">
+          <h3><span class="tag">lesson</span></h3>
+          <p>Digit extraction is universal; the <em>weight</em> is what changes between bases. <code class="inl">% 10</code> and <code class="inl">/ 10</code> peel decimal digits no matter what those digits are supposed to mean. The program is a correct base-2 evaluator and an unvalidated base-10 reader at the same time — and that gap is the whole story of this file.</p>
+        </div>
+        <div class="card reveal" style="--d:100ms">
+          <h3><span class="tag">mistakes to avoid</span></h3>
+          <ul style="font-size:14.2px">
+            <li>Accepting digits 2 … 9 in a program whose name promises binary input.</li>
+            <li>Validating <em>after</em> the computation instead of before it.</li>
+            <li>Using recursion to re-run a program when a <code class="inl">while</code> loop would do — every retry leaks a frame and a Scanner.</li>
+            <li>Recomputing a power from scratch on each call instead of carrying it forward.</li>
+            <li>Leaving a <code class="inl">return -1;</code> fallback that the caller never checks for.</li>
+            <li>Trusting <code class="inl">nextLong()</code> on unvalidated input.</li>
+          </ul>
+        </div>
+        <div class="card reveal" style="--d:200ms">
+          <h3><span class="tag">remember</span></h3>
+          <p>A number's <em>type</em> and its <em>meaning</em> are separate. <code class="inl">1011</code> is a perfectly ordinary <code class="inl">long</code>; calling it “binary” is a promise the code has to keep by checking each digit.</p>
+          <p>The other lesson is quieter: the loop that already knows how to move a value forward is almost always cheaper than a method that rebuilds it.</p>
+        </div>
+      </div>
+
+      <div class="grid g2" style="margin-top:calc(18px * var(--sp));align-items:start">
+        <div class="challenge reveal">
+          <h3>Check your understanding</h3>
+          <p style="color:#c6d1ec;margin-bottom:6px">For the input <code class="inl">1011</code>: how many times is <code class="inl">powerOfTwo</code> called, what does the third call return, and how many multiplications happen inside the helper in total?</p>
+          <button class="tbtn reveal-btn" id="chal1" type="button">show answer</button>
+          <div class="answer" id="ans1">Four calls, for powers 0, 1, 2 and 3. The third call is <code class="inl">powerOfTwo(2)</code> and returns <strong>4</strong>: <code class="inl">a</code> starts at 1, the loop multiplies it twice, giving 2 then 4. Total multiplications inside the helper: 0 (power 0) + 0 (power 1) + 2 (power 2) + 3 (power 3) = <strong>5</strong>. The four passes of the outer loop contribute <code class="inl">dec = 1 + 2 + 0 + 8 = 11</code>.</div>
+        </div>
+
+        <div class="challenge reveal" style="--d:120ms">
+          <h3>One more</h3>
+          <p style="color:#c6d1ec;margin-bottom:6px">Entering <code class="inl">-101</code> prints <code class="inl">Invalid Input.</code> and asks again. Why does entering <code class="inl">-101</code> twenty thousand times eventually crash instead of just asking twenty thousand times?</p>
+          <button class="tbtn reveal-btn" id="chal2" type="button">show answer</button>
+          <div class="answer" id="ans2">Because the retry is a recursive call, not a loop. Each <code class="inl">&minus;101</code> leaves its <code class="inl">main</code> frame suspended at line 38 — with its own <code class="inl">Scanner</code> still open — and starts a new frame on top. Twenty thousand rejections means twenty thousand live frames, and the JVM's thread stack cannot hold that many: it throws <code class="inl">StackOverflowError</code>. A <code class="inl">while</code> loop would reuse one frame and one Scanner forever, printing the message as many times as you like. The stack also explains the ordering: nothing from the outer frames (including their <code class="inl">sc.close()</code> calls) runs until the innermost <code class="inl">main</code> finally returns.</div>
+        </div>
+      </div>
+
+      <div class="card reveal" style="margin-top:calc(18px * var(--sp))">
+        <h3><span class="tag">later</span></h3>
+        <p>The reverse direction — decimal to binary — is the natural complement, and it makes the weight idea concrete: repeatedly divide by 2, collect the remainders, and read them back to front. From there the same machinery becomes bit operations: <code class="inl">1L &lt;&lt; k</code> for the weight, <code class="inl">&amp;</code> to test a bit, <code class="inl">|</code> to set one, and <code class="inl">&gt;&gt;&gt;</code> to shift a number down a place — operations that do exactly what this loop does by hand, in constant time. The recursion-as-retry pattern, meanwhile, is the anti-pattern that later makes the case for the loop-based menus you will write in bigger programs.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= 11 SOURCE ================= -->
+  <section class="section" id="source">
+    <div class="wrap">
+      <div class="head reveal">
+        <div class="eyebrow"><b>11</b> Your original Java source</div>
+        <h2>Bin2dec.java — verbatim</h2>
+        <p class="lead">Reproduced exactly as submitted. Nothing on this page has altered it.</p>
+      </div>
+
+      <div class="src-wrap reveal">
+        <div class="code" id="srcCode">
+          <div class="cb">
+            <span class="fname"><i></i>Bin2dec.java</span>
+            <button class="copy-btn" id="copySrc" type="button">copy source</button>
+          </div>
+          <pre id="srcPre">import java.util.Scanner;
+
+public class Bin2dec {
+    public static long powerOfTwo(int power) {
+        if (power == 0)
+            return 1;
+        else if (power == 1)
+            return 2;
+        else if (power &gt; 1) {
+            long a = 1;
+            for (int i = 0; i &lt; power; i++) {
+                a = a * 2;
+            }
+            return a;
+        }
+        return -1;
+    }
+
+    public static void main(String[] args) {
+
+        Scanner sc = new Scanner(System.in);
+        System.out.print("Enter no in binary : ");
+        long num = sc.nextLong();
+
+        long num1 = num;
+        int pow = 0;
+        long dec = 0;
+
+        while (num1 &gt; 0) {
+            long a = (num1 % 10) * powerOfTwo(pow);
+            pow++;
+            num1 /= 10;
+            dec += a;
+        }
+
+        if (num &lt; 0) {
+            System.out.println(("Invalid Input."));
+            main(args);
+        } else {
+            System.out.println("Decimal : " + dec);
+        }
+        sc.close();
+    }
+}</pre>
+        </div>
+        <p class="src-note">Copying yields the plain source, without colouring.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= 12 NEXT ================= -->
+  <section class="section" id="next">
+    <div class="wrap">
+      <div class="head reveal">
+        <div class="eyebrow"><b>12</b> Next learning step</div>
+        <h2>Where this leads</h2>
+      </div>
+      <div class="grid g2" style="align-items:start">
+        <div class="card reveal">
+          <h3>The natural candidate: decimal → binary</h3>
+          <p>Your sequence has now converted <em>from</em> a base; the mirror program converts <em>to</em> one. Divide repeatedly by 2, keep the remainders, and read them back in reverse — the same “peel the last digit” reflex, with the weights replaced by a division that decides each digit.</p>
+          <p>The interesting part is what it teaches about this program: once you have written both directions, the weight table (1, 2, 4, 8 …) stops being something to recompute and becomes something you <em>carry</em> — a single variable that doubles. That is the exact change suggested in section 9, and it makes the quadratic cost disappear.</p>
+          <p class="src-note"><strong>Not confirmed.</strong> Decimal-to-binary is the natural complement of what you just submitted, but no specific next program has been chosen for your sequence yet — say the word and it becomes the next page.</p>
+        </div>
+        <div class="card reveal" style="--d:120ms">
+          <h3>What carries forward</h3>
+          <ul>
+            <li><strong>Peel and shift</strong> — <code class="inl">% 10</code> to read, <code class="inl">/ 10</code> to advance, in that order, always.</li>
+            <li><strong>Positional meaning</strong> — the same digit is worth ten times more one place to the left; in base 2, twice as much.</li>
+            <li><strong>Validate before compute</strong> — a digit test inside the loop would have caught 102.</li>
+            <li><strong>Loops over recursion for retries</strong> — one frame, one Scanner, unbounded attempts.</li>
+            <li><strong>Carry, don't recompute</strong> — a running weight beats a helper that rebuilds the same power.</li>
+            <li><strong>Guard the read</strong> — <code class="inl">hasNextLong()</code> before <code class="inl">nextLong()</code>.</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<footer>
+  <div class="wrap foot-in">
+    <p>Bin2dec.java — dissected from the submitted source. Behaviour described here matches the code as written.</p>
+    <p class="mono">static · long · while · % · /=  · recursion · Scanner</p>
+  </div>
+</footer>
+
+<div class="dock" id="dock">
+  <div class="dock-panel" id="dockPanel">
+    <div class="grp">
+      <span class="glab">balance</span>
+      <div class="seg" id="segDensity">
+        <button data-density="comfort" type="button">comfort</button>
+        <button data-density="balanced" class="on" type="button">balanced</button>
+        <button data-density="compact" type="button">compact</button>
+      </div>
+    </div>
+    <div class="grp">
+      <span class="glab">glow</span>
+      <div class="seg" id="segGlow">
+        <button data-glow="low" type="button">low</button>
+        <button data-glow="medium" class="on" type="button">soft</button>
+        <button data-glow="high" type="button">high</button>
+      </div>
+    </div>
+  </div>
+  <button class="dock-toggle" id="dockToggle" type="button" aria-expanded="false" aria-controls="dockPanel">
+    <span class="g"></span>
+    <span id="dockCur">balanced · soft</span>
+    <svg class="chev" width="11" height="11" viewBox="0 0 12 12" fill="none" aria-hidden="true"><path d="M2.5 8L6 4.5 9.5 8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+  </button>
+</div>
+
+<script>
+(function(){
+  "use strict";
+  var reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  /* ================= shared UI ================= */
+  var revealEls = document.querySelectorAll('.reveal');
+  if ('IntersectionObserver' in window) {
+    var io = new IntersectionObserver(function(entries){
+      entries.forEach(function(e){ if (e.isIntersecting) { e.target.classList.add('in'); io.unobserve(e.target); } });
+    }, { rootMargin: '0px 0px -8% 0px', threshold: 0.08 });
+    revealEls.forEach(function(el){ io.observe(el); });
+  } else { revealEls.forEach(function(el){ el.classList.add('in'); }); }
+
+  var progress = document.getElementById('progress');
+  var navLinks = Array.prototype.slice.call(document.querySelectorAll('.nav-links a'));
+  var sections = navLinks.map(function(a){ return document.querySelector(a.getAttribute('href')); });
+  function onScroll(){
+    var h = document.documentElement;
+    var max = (h.scrollHeight - h.clientHeight) || 1;
+    progress.style.transform = 'scaleX(' + Math.min(1, Math.max(0, h.scrollTop / max)) + ')';
+    var idx = -1;
+    for (var i = 0; i < sections.length; i++) { if (sections[i] && sections[i].getBoundingClientRect().top <= 140) idx = i; }
+    navLinks.forEach(function(a, i){ a.classList.toggle('active', i === idx); });
+  }
+  window.addEventListener('scroll', onScroll, { passive: true });
+  onScroll();
+
+  var vc = document.getElementById('verdictCard');
+  if (vc && !reduceMotion && window.matchMedia('(hover: hover)').matches) {
+    var host = vc.parentElement;
+    host.addEventListener('mousemove', function(ev){
+      var r = host.getBoundingClientRect();
+      var x = (ev.clientX - r.left) / r.width - 0.5;
+      var y = (ev.clientY - r.top) / r.height - 0.5;
+      vc.style.transform = 'rotateY(' + (x * 7).toFixed(2) + 'deg) rotateX(' + (-y * 7).toFixed(2) + 'deg) translateZ(12px)';
+    });
+    host.addEventListener('mouseleave', function(){ vc.style.transform = ''; });
+  }
+
+  /* dock */
+  var dockCur = document.getElementById('dockCur');
+  function syncDockLabel(){
+    if (!dockCur) return;
+    var d = document.querySelector('#segDensity button.on');
+    var g = document.querySelector('#segGlow button.on');
+    dockCur.textContent = (d ? d.textContent : 'balanced') + ' · ' + (g ? g.textContent : 'soft');
+  }
+  function bindSeg(id, attr, root){
+    var box = document.getElementById(id);
+    if (!box) return;
+    box.addEventListener('click', function(ev){
+      var b = ev.target.closest('button');
+      if (!b) return;
+      box.querySelectorAll('button').forEach(function(x){ x.classList.remove('on'); });
+      b.classList.add('on');
+      root.setAttribute('data-' + attr, b.getAttribute('data-' + attr));
+      syncDockLabel();
+    });
+  }
+  bindSeg('segDensity', 'density', document.documentElement);
+  bindSeg('segGlow', 'glow', document.documentElement);
+  syncDockLabel();
+
+  var dock = document.getElementById('dock');
+  var dockToggle = document.getElementById('dockToggle');
+  var idleTimer = null, closeTimer = null;
+  function openDock(){ dock.classList.add('panel-open'); dock.classList.remove('idle'); dockToggle.setAttribute('aria-expanded','true'); if (closeTimer){clearTimeout(closeTimer); closeTimer=null;} }
+  function closeDock(){ dock.classList.remove('panel-open'); dockToggle.setAttribute('aria-expanded','false'); }
+  function scheduleClose(){ if (closeTimer) clearTimeout(closeTimer); closeTimer = setTimeout(closeDock, 900); }
+  function wakeDock(){ dock.classList.remove('idle'); if (idleTimer) clearTimeout(idleTimer); idleTimer = setTimeout(function(){ if (!dock.classList.contains('panel-open')) dock.classList.add('idle'); }, 2600); }
+  dockToggle.addEventListener('click', function(){ dock.classList.contains('panel-open') ? closeDock() : openDock(); wakeDock(); });
+  dock.addEventListener('mouseenter', openDock);
+  dock.addEventListener('mouseleave', scheduleClose);
+  dock.addEventListener('focusin', openDock);
+  dock.addEventListener('focusout', scheduleClose);
+  document.addEventListener('keydown', function(ev){ if (ev.key === 'Escape') closeDock(); });
+  document.addEventListener('pointerdown', function(ev){ if (!dock.contains(ev.target)) closeDock(); });
+  window.addEventListener('scroll', wakeDock, { passive: true });
+  wakeDock();
+
+  [['chal1','ans1'],['chal2','ans2']].forEach(function(pair){
+    var btn = document.getElementById(pair[0]), ans = document.getElementById(pair[1]);
+    if (!btn || !ans) return;
+    btn.addEventListener('click', function(){
+      var open = ans.classList.toggle('open');
+      btn.textContent = open ? 'hide answer' : 'show answer';
+    });
+  });
+
+  var chart = document.getElementById('barChart');
+  if (chart && 'IntersectionObserver' in window) {
+    var bo = new IntersectionObserver(function(es){
+      es.forEach(function(e){
+        if (!e.isIntersecting) return;
+        chart.querySelectorAll('.barfill').forEach(function(f, i){
+          setTimeout(function(){ f.style.width = f.getAttribute('data-w') + '%'; }, i * 90);
+        });
+        bo.disconnect();
+      });
+    }, { threshold: 0.4 });
+    bo.observe(chart);
+  }
+
+  var srcPre = document.getElementById('srcPre');
+  var copyBtn = document.getElementById('copySrc');
+  var rawSource = srcPre ? srcPre.textContent : '';
+  copyBtn.addEventListener('click', function(){
+    var done = function(){
+      copyBtn.textContent = 'copied ✓'; copyBtn.classList.add('ok');
+      setTimeout(function(){ copyBtn.textContent = 'copy source'; copyBtn.classList.remove('ok'); }, 1900);
+    };
+    var fail = function(){
+      copyBtn.textContent = 'select + ctrl C';
+      try { var rng = document.createRange(); rng.selectNodeContents(srcPre); var sel = window.getSelection(); sel.removeAllRanges(); sel.addRange(rng); } catch(e){}
+      setTimeout(function(){ copyBtn.textContent = 'copy source'; }, 2400);
+    };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(rawSource).then(done).catch(fail);
+    } else {
+      try {
+        var ta = document.createElement('textarea');
+        ta.value = rawSource; ta.style.position='fixed'; ta.style.opacity='0';
+        document.body.appendChild(ta); ta.select();
+        var ok = document.execCommand('copy');
+        document.body.removeChild(ta);
+        ok ? done() : fail();
+      } catch(e){ fail(); }
+    }
+  });
+
+  /* ================= the algorithm, faithfully ================= */
+  function powerOfTwo(power){
+    var mult = 0;
+    if (power === 0) return { value: 1, mult: 0, trace: [] };
+    if (power === 1) return { value: 2, mult: 0, trace: [] };
+    if (power > 1) {
+      var a = 1, trace = [];
+      for (var i = 0; i < power; i++) { a = a * 2; mult++; trace.push(a); }
+      return { value: a, mult: mult, trace: trace };
+    }
+    return { value: -1, mult: 0, trace: [] };
+  }
+
+  function convert(num){
+    var num1 = num, pow = 0, dec = 0, rows = [], mult = 0, calls = 0;
+    while (num1 > 0) {
+      var d = num1 % 10;
+      var p = powerOfTwo(pow);
+      calls++; mult += p.mult;
+      var a = d * p.value;
+      rows.push({ digit: d, pow: pow, weight: p.value, product: a, dec: dec + a, num1: num1 });
+      pow++;
+      num1 /= 10; num1 = Math.trunc(num1);
+      dec += a;
+    }
+    return { dec: dec, rows: rows, mult: mult, calls: calls, passes: rows.length, pow: pow };
+  }
+
+  /* ================= hero ================= */
+  (function hero(){
+    var rib = document.getElementById('heroRibbon');
+    var wts = document.getElementById('heroWeights');
+    var stats = document.getElementById('heroStats');
+    if (!rib) return;
+    var digits = [1, 0, 1, 1];
+    var res = convert(1011);
+    digits.forEach(function(d, idx){
+      var pos = digits.length - 1 - idx;
+      if (idx > 0) { var op = document.createElement('span'); op.className = 'op'; op.textContent = '·'; rib.appendChild(op); }
+      var c = document.createElement('div');
+      c.className = 'cell ' + (d ? 'on' : 'off');
+      c.style.setProperty('--cd', (idx * 110) + 'ms');
+      c.textContent = d;
+      rib.appendChild(c);
+      void pos;
+    });
+    var eq = document.createElement('span'); eq.className='op'; eq.textContent='='; rib.appendChild(eq);
+    var r = document.createElement('span'); r.className='res'; r.textContent='11'; rib.appendChild(r);
+    [8,4,2,1].forEach(function(w, idx){
+      var t = document.createElement('span');
+      t.className = 'wchip' + (digits[idx] ? ' on' : '');
+      t.textContent = '×' + w;
+      wts.appendChild(t);
+    });
+    stats.textContent = '1·1 + 1·2 + 0·4 + 1·8 = ' + res.dec + '   ·   powerOfTwo × ' + res.calls + '   ·   ' + res.mult + ' multiplications';
+  })();
+
+  /* ================= simulator ================= */
+  var body = document.getElementById('termBody');
+  var form = document.getElementById('termForm');
+  var input = document.getElementById('termInput');
+  var stN = document.getElementById('stN');
+  var stBranch = document.getElementById('stBranch');
+  var stPass = document.getElementById('stPass');
+  var stCalls = document.getElementById('stCalls');
+  var stMult = document.getElementById('stMult');
+  var stDec = document.getElementById('stDec');
+  var stDepth = document.getElementById('stDepth');
+  var bits = document.getElementById('bits');
+  var bitsMeta = document.getElementById('bitsMeta');
+  var odoNum = document.getElementById('odoNum');
+  var odoEq = document.getElementById('odoEq');
+
+  var LONG_MAX = 9223372036854775807;
+  var LONG_MIN = -9223372036854775808;
+  var depth = 0;
+  var ended = false;
+
+  function scrollTerm(){ body.scrollTop = body.scrollHeight; }
+  function addLine(text, cls){
+    var d = document.createElement('div');
+    d.className = 'l ' + (cls || '');
+    d.textContent = text;
+    body.appendChild(d);
+    scrollTerm();
+    return d;
+  }
+  function promptEl(){
+    var d = document.createElement('div');
+    d.className = 'l l-prompt';
+    var s = document.createElement('span'); s.textContent = 'Enter no in binary : ';
+    d.appendChild(s);
+    var typed = document.createElement('span');
+    typed.className = 'typed';
+    typed.style.color = '#ffc98b';
+    d.appendChild(typed);
+    var c = document.createElement('span'); c.className = 'caret'; d.appendChild(c);
+    body.appendChild(d);
+    scrollTerm();
+    return d;
+  }
+
+  function echoToPrompt(text){
+    if (!currentPrompt) return;
+    var typed = currentPrompt.querySelector('.typed');
+    var caret = currentPrompt.querySelector('.caret');
+    if (typed) typed.textContent = text;
+    if (caret) caret.remove();
+    scrollTerm();
+  }
+  var currentPrompt = null;
+
+  function depthText(){
+    if (depth <= 1) return '1 · main only';
+    return depth + ' frames · main → ' + new Array(depth - 1).join('main → ') + 'main';
+  }
+
+  function resetProgram(){
+    body.innerHTML = '';
+    depth = 1;
+    ended = false;
+    bits.innerHTML = '';
+    bitsMeta.textContent = '— no run yet';
+    odoNum.textContent = '—';
+    odoEq.textContent = 'accumulated by dec += a';
+    stN.textContent = '—'; stBranch.textContent = '—'; stPass.textContent = '—';
+    stCalls.textContent = '—'; stMult.textContent = '—'; stDec.textContent = '—';
+    stDepth.textContent = depthText();
+    currentPrompt = promptEl();
+  }
+
+  function renderBits(rows, num){
+    bits.innerHTML = '';
+    rows.forEach(function(r, i){
+      var row = document.createElement('div');
+      var bad = r.digit > 1;
+      row.className = 'bitrow ' + (bad ? 'bad' : (r.digit ? 'hot' : ''));
+      row.style.setProperty('--bd', (i * 90) + 'ms');
+      var dg = document.createElement('div');
+      dg.className = 'digit ' + (bad ? 'bad' : (r.digit ? 'one' : 'zero'));
+      dg.textContent = r.digit;
+      var ex = document.createElement('div');
+      ex.className = 'expr';
+      ex.innerHTML = '<i>pass ' + (i + 1) + ' · num1 = ' + r.num1 + '</i><br>' +
+        (r.digit === 0 ? '0 × ' : r.digit + ' × 2<sup>' + r.pow + '</sup> = ') +
+        (r.digit === 0 ? r.weight + ' = 0' : r.digit + ' × ' + r.weight);
+      var vv = document.createElement('div');
+      vv.className = 'val';
+      vv.textContent = '+' + r.product;
+      row.appendChild(dg); row.appendChild(ex); row.appendChild(vv);
+      bits.appendChild(row);
+      setTimeout(function(){ row.classList.add('in'); }, 40 + i * 70);
+    });
+    var total = document.createElement('div');
+    total.className = 'bitrow in';
+    total.style.borderColor = 'rgba(245,166,91,.4)';
+    total.style.background = 'rgba(245,166,91,.06)';
+    var eq = document.createElement('div');
+    eq.className = 'digit one'; eq.textContent = '=';
+    var lbl = document.createElement('div');
+    lbl.className = 'expr';
+    lbl.textContent = num + ' in base 10';
+    var sum = document.createElement('div');
+    sum.className = 'val'; sum.textContent = rows.reduce(function(a, r){ return a + r.product; }, 0);
+    total.appendChild(eq); total.appendChild(lbl); total.appendChild(sum);
+    bits.appendChild(total);
+  }
+
+  function submit(raw){
+    var val = String(raw).trim();
+    if (val === '') return;
+    if (ended) {
+      addLine('ⓘ the program has ended — press ↺ restart program to run it again', 'l-note');
+      return;
+    }
+    echoToPrompt(val);
+    currentPrompt = null;
+
+    var isInt = /^[+-]?\d+$/.test(val);
+    var num = isInt ? Number(val) : NaN;
+    if (isInt && (num > LONG_MAX || num < LONG_MIN)) isInt = false;
+
+    if (!isInt) {
+      addLine('Exception in thread "main" java.util.InputMismatchException', 'l-err');
+      addLine('        at java.base/java.util.Scanner.throwFor(Scanner.java:939)', 'l-err');
+      addLine('        at java.base/java.util.Scanner.next(Scanner.java:1594)', 'l-err');
+      addLine('        at java.base/java.util.Scanner.nextLong(Scanner.java:2424)', 'l-err');
+      addLine('        at Bin2dec.main(Bin2dec.java:23)', 'l-err');
+      addLine('ⓘ no try / catch — the program ends here, and every outer main frame keeps its Scanner open', 'l-note');
+      ended = true;
+      stN.textContent = val;
+      stBranch.textContent = 'exception at line 23';
+      stDepth.textContent = depthText();
+      return;
+    }
+
+    /* ---- the conversion, exactly as written ---- */
+    var res = convert(num);
+
+    if (num < 0) {
+      addLine('Invalid Input.', 'l-res');
+      addLine('ⓘ main(args) is called: a new frame, a new Scanner, a new prompt — the loop never ran', 'l-note');
+      depth++;
+      stN.textContent = String(num);
+      stBranch.textContent = 'num < 0 → line 38';
+      stPass.textContent = '0';
+      stCalls.textContent = '0';
+      stMult.textContent = '0';
+      stDec.textContent = '—';
+      stDepth.textContent = depthText();
+      bits.innerHTML = '';
+      bitsMeta.textContent = '· loop never ran — nothing to break down';
+      odoNum.textContent = '—';
+      odoEq.textContent = 'dec stayed 0 and was never printed';
+      addLine('───────── recursion depth ' + depth + ' ─────────', 'l-sep');
+      currentPrompt = promptEl();
+      if (depth >= 5) {
+        var w = addLine('ⓘ ' + depth + ' nested main frames — the real program would keep stacking until the JVM throws StackOverflowError', 'l-note');
+        w.style.color = '#ffb3b3';
+      }
+      return;
+    }
+
+    addLine('Decimal : ' + res.dec, 'l-res');
+    if (depth > 1) {
+      addLine('ⓘ printed inside the innermost frame — the ' + (depth - 1) + ' outer frame(s) now resume, each running its own sc.close()', 'l-note');
+    }
+    ended = true;
+    stN.textContent = String(num);
+    stBranch.textContent = 'num ≥ 0 → line 40';
+    stPass.textContent = String(res.passes);
+    stCalls.textContent = String(res.calls);
+    stMult.textContent = String(res.mult);
+    stDec.textContent = String(res.dec);
+    stDepth.textContent = depthText() + ' · unwinds after this line';
+
+    if (res.rows.length) {
+      renderBits(res.rows, num);
+      bitsMeta.textContent = '· ' + res.passes + ' digits · ' + res.mult + ' × ops';
+      odoNum.textContent = String(res.dec);
+      odoEq.textContent = 'Decimal : ' + res.dec;
+    } else {
+      bits.innerHTML = '';
+      bitsMeta.textContent = '· loop never ran';
+      odoNum.textContent = '0';
+      odoEq.textContent = 'dec kept its initial value';
+    }
+
+    if (num > 1 && /[2-9]/.test(String(num))) {
+      addLine('ⓘ note: ' + num + ' contains a digit above 1 — the program does not check, and evaluated it anyway', 'l-note');
+    }
+  }
+
+  form.addEventListener('submit', function(ev){
+    ev.preventDefault();
+    var v = input.value; input.value = '';
+    submit(v); input.focus();
+  });
+  document.querySelectorAll('.preset[data-v]').forEach(function(p){
+    p.addEventListener('click', function(){ submit(p.getAttribute('data-v')); input.focus(); });
+  });
+  document.getElementById('resetTerm').addEventListener('click', function(){ resetProgram(); input.focus(); });
+  resetProgram();
+
+  /* ================= trace engine ================= */
+  function traceFor(n){
+    var steps = [], out = [], frame = 'main';
+    var v = { num: '—', num1: '—', pow: '—', dec: '0', a: '—', helper: '—' };
+    function snap(){ return out.slice(); }
+    function add(title, detail, pushLine){
+      if (pushLine) out.push(pushLine);
+      steps.push({ title: title, detail: detail, vars: {
+        num: v.num, num1: v.num1, pow: v.pow, dec: v.dec, a: v.a, helper: v.helper
+      }, out: snap(), frame: frame, decVal: v.dec });
+    }
+
+    add('main() begins', 'Line 21 creates the Scanner. Nothing is printed and no value is read yet.');
+    add('prompt printed — line 22', 'print, not println: the cursor stays on the same line, waiting for your digits.', 'Enter no in binary : ');
+    v.num = String(n);
+    add('sc.nextLong() → num = ' + n, 'The token is parsed as a long. This is the only input the program reads.', String(n));
+    v.num1 = String(n); v.pow = '0'; v.dec = '0';
+    add('locals initialised — lines 25–27', 'num1 is a copy of num (' + n + '), pow starts at 0 and dec at 0.');
+
+    if (n < 0) {
+      add('while (num1 > 0) → false', n + ' is not greater than 0, so the loop body never executes. dec stays at its initial 0, which is never printed.');
+      add('if (num < 0) → true', 'Control enters the invalid branch at line 36. println writes the message and ends the line.', 'Invalid Input.');
+      add('main(args) — line 38', 'A recursive call: a new main frame starts on top of this one, with its own Scanner and its own prompt. The outer frame is suspended here until the inner one returns.', 'Enter no in binary : ');
+      add('… next run', 'Everything that follows happens inside the new frame. The outer frame resumes only when the inner main returns — and then its own sc.close() runs.');
+      return steps;
+    }
+
+    add('while (num1 > 0) → true', 'num1 = ' + n + ' is greater than 0, so the first pass begins.');
+    var num1 = n, pow = 0, dec = 0;
+    var guard = 0;
+    while (num1 > 0 && guard++ < 24) {
+      var d = num1 % 10;
+      v.num1 = String(num1); v.pow = String(pow);
+      add('pass ' + (pow + 1) + ': digit = num1 % 10',
+        num1 + ' % 10 = ' + d + '. That is the digit sitting in the 2^' + pow + ' place. (If it were above 1, the program would not notice.)');
+
+      frame = 'helper';
+      v.helper = String(pow); v.a = '—';
+      if (pow === 0) {
+        add('powerOfTwo(0) called', 'First branch: power == 0 → return 1. No multiplication happens at all.');
+        v.a = '1';
+        add('powerOfTwo returns 1', 'The value 1 travels back into the expression at line 30.');
+      } else if (pow === 1) {
+        add('powerOfTwo(1) called', 'Second branch: power == 1 → return 2. Again, no loop.');
+        v.a = '2';
+        add('powerOfTwo returns 2', 'The value 2 travels back into the expression at line 30.');
+      } else {
+        add('powerOfTwo(' + pow + ') called', 'Third branch: power > 1. a starts at 1 and the for loop will multiply it exactly ' + pow + ' time' + (pow === 1 ? '' : 's') + '.');
+        var a = 1;
+        for (var i = 0; i < pow; i++) {
+          a = a * 2;
+          add('  inside helper: i = ' + i + ' → a = ' + a, 'One multiplication: ' + (a / 2) + ' × 2 = ' + a + '.');
+        }
+        add('powerOfTwo returns ' + a, 'The loop ran ' + pow + ' times, so the method hands back 2^' + pow + ' = ' + a + '.');
+        v.a = String(a);
+      }
+      frame = 'main';
+
+      var weight = pow === 0 ? 1 : (pow === 1 ? 2 : Math.pow(2, pow));
+      var prod = d * weight;
+      v.a = String(prod);
+      add('a = ' + d + ' × ' + weight + ' = ' + prod,
+        'Line 30 multiplies the digit by the weight. ' + (d === 0 ? 'A zero digit contributes nothing, but the position still counts.' : 'This is the contribution of the 2^' + pow + ' place.'));
+
+      pow++;
+      v.pow = String(pow);
+      add('pow++ → ' + pow, 'The next digit to the left is worth twice as much, so the exponent must advance.');
+
+      num1 = Math.floor(num1 / 10);
+      v.num1 = String(num1);
+      add('num1 /= 10 → ' + num1, 'The digit just used is discarded by integer division. ' + (num1 === 0 ? 'num1 is now 0, so the loop will end after this pass.' : 'num1 still has digits left.'));
+
+      dec += prod;
+      v.dec = String(dec);
+      add('dec += a → ' + dec, 'The contribution is folded into the running total.');
+      if (num1 > 0) { /* continue */ }
+    }
+
+    add('while (num1 > 0) → false', 'num1 reached 0, so the loop stops. dec holds the full value: ' + dec + '.');
+    add('if (num < 0) → false', 'The input was not negative, so the else branch runs at line 40.');
+    add('println("Decimal : " + dec) — line 40', 'The concatenation produces the final line. Then sc.close() at line 42 runs and main ends.', 'Decimal : ' + dec);
+    return steps;
+  }
+
+  var stepNo = document.getElementById('stepNo');
+  var stepTitle = document.getElementById('stepTitle');
+  var stepDetail = document.getElementById('stepDetail');
+  var stepVars = document.getElementById('stepVars');
+  var traceOut = document.getElementById('traceOut');
+  var traceSum = document.getElementById('traceSum');
+  var traceRail = document.getElementById('traceRail');
+  var traceCount = document.getElementById('traceCount');
+  var traceCase = document.getElementById('traceCase');
+  var frameMain = document.getElementById('frameMain');
+  var framePow = document.getElementById('framePow');
+  var stackState = document.getElementById('stackState');
+
+  var trace = [], cursor = 0, timer = null;
+  var varKeys = [
+    ['num', 'num'], ['num1', 'num1'], ['pow', 'pow'],
+    ['dec', 'dec'], ['a', 'a (product)'], ['helper', 'helper arg']
+  ];
+
+  function renderTrace(){
+    var s = trace[cursor];
+    var card = stepTitle.closest('.now-card');
+    stepNo.textContent = 'step ' + (cursor + 1) + ' of ' + trace.length;
+    stepTitle.textContent = s.title;
+    stepDetail.textContent = s.detail;
+    if (card && !reduceMotion) { card.classList.add('swap'); setTimeout(function(){ card.classList.remove('swap'); }, 90); }
+
+    stepVars.innerHTML = '';
+    var prev = trace[cursor - 1];
+    varKeys.forEach(function(k){
+      var t = document.createElement('div');
+      t.className = 'vtile';
+      if (prev && prev.vars[k[0]] !== s.vars[k[0]]) t.classList.add('changed');
+      var a = document.createElement('div'); a.className = 'k'; a.textContent = k[1];
+      var b = document.createElement('div'); b.className = 'v'; b.textContent = s.vars[k[0]];
+      t.appendChild(a); t.appendChild(b);
+      stepVars.appendChild(t);
+    });
+
+    traceOut.innerHTML = '';
+    if (!s.out.length) {
+      var e = document.createElement('div'); e.className = 'l'; e.style.color = '#4f5a73'; e.textContent = 'nothing printed yet';
+      traceOut.appendChild(e);
+    }
+    s.out.forEach(function(t){
+      var d = document.createElement('div');
+      d.className = 'l';
+      d.style.animation = 'lineIn .3s cubic-bezier(.22,1,.36,1) both';
+      d.textContent = t;
+      d.style.color = /^Enter no/.test(t) ? '#ffd9a8'
+        : /^Invalid/.test(t) ? '#ff9e9e'
+        : /^Decimal/.test(t) ? '#eaf6ff'
+        : /^dec =/.test(t) ? '#ffc98b'
+        : /^\d/.test(t) ? '#8b96ae' : '#5d6a85';
+      traceOut.appendChild(d);
+    });
+    traceOut.scrollTop = traceOut.scrollHeight;
+
+    traceSum.innerHTML = '';
+    var sp = document.createElement('span');
+    var dv = (s.decVal === undefined || s.decVal === '—') ? '0' : s.decVal;
+    sp.textContent = 'dec = ' + dv;
+    sp.style.color = dv === '0' ? '#4f5a73' : '#ffc98b';
+    traceSum.appendChild(sp);
+    if (s.out.some(function(t){ return /^Decimal/.test(t); })) {
+      var fin = document.createElement('span');
+      fin.style.color = '#a99a86';
+      fin.style.marginLeft = '12px';
+      fin.textContent = '← printed';
+      traceSum.appendChild(fin);
+    }
+
+    var inHelper = s.frame === 'helper';
+    frameMain.classList.toggle('active', !inHelper);
+    framePow.classList.toggle('active', inHelper);
+    stackState.textContent = inHelper ? 'inside powerOfTwo' : 'main running';
+
+    traceCount.textContent = 'step ' + (cursor + 1) + ' / ' + trace.length;
+    document.getElementById('tPrev').disabled = cursor === 0;
+    document.getElementById('tNext').disabled = cursor === trace.length - 1;
+    Array.prototype.forEach.call(traceRail.children, function(b, i){
+      b.classList.toggle('cur', i === cursor);
+      b.classList.toggle('done', i < cursor);
+    });
+  }
+
+  function loadTrace(n){
+    stopPlay();
+    trace = traceFor(n);
+    cursor = 0;
+    traceRail.innerHTML = '';
+    trace.forEach(function(_, i){
+      var b = document.createElement('button');
+      b.type = 'button';
+      b.setAttribute('aria-label', 'go to step ' + (i + 1));
+      b.addEventListener('click', function(){ stopPlay(); cursor = i; renderTrace(); });
+      traceRail.appendChild(b);
+    });
+    renderTrace();
+  }
+
+  function stopPlay(){
+    if (timer) { clearInterval(timer); timer = null; }
+    var p = document.getElementById('tPlay');
+    if (p) p.textContent = '▶ play';
+  }
+
+  document.getElementById('tPrev').addEventListener('click', function(){ stopPlay(); if (cursor > 0) { cursor--; renderTrace(); } });
+  document.getElementById('tNext').addEventListener('click', function(){ stopPlay(); if (cursor < trace.length - 1) { cursor++; renderTrace(); } });
+  document.getElementById('tReset').addEventListener('click', function(){ loadTrace(Number(traceCase.value)); });
+  traceCase.addEventListener('change', function(){ loadTrace(Number(traceCase.value)); });
+  document.getElementById('tPlay').addEventListener('click', function(){
+    var btn = this;
+    if (timer) { stopPlay(); return; }
+    if (cursor === trace.length - 1) { cursor = 0; renderTrace(); }
+    btn.textContent = '❚❚ pause';
+    timer = setInterval(function(){
+      if (cursor < trace.length - 1) { cursor++; renderTrace(); }
+      else { stopPlay(); }
+    }, 1000);
+  });
+
+  loadTrace(1011);
+})();
+</script>
+<script type="module" src="https://static.cloudflareinsights.com/beacon.min.js/vce701823e78c4301a35b7e07294d87301792088814092" integrity="sha512-UKNk8GbxkABxKcXYuLkO16EleLGUkcvJWtpSNmExE0Too3ZaFAxTscNWEc1OdAv5/BikHawapSCaiD2XCmp+Bw==" data-cf-beacon='{"version":"2024.11.0","token":"1954b47c125f43f8b4338b3c4f804e4f","spa":2}' crossorigin="anonymous"></script>
+
+<style id="journal-return-link">
+#journal-return-link-ui{position:fixed;z-index:99999;left:18px;bottom:18px;display:inline-flex;align-items:center;gap:9px;padding:10px 14px;border:1px solid rgba(155,150,255,.35);border-radius:999px;background:rgba(8,10,22,.82);backdrop-filter:blur(16px);color:#f4f3ff;text-decoration:none;font:600 12px/1.2 system-ui,-apple-system,sans-serif;letter-spacing:.04em;box-shadow:0 8px 30px rgba(0,0,0,.3);transition:transform .2s ease,border-color .2s ease}
+#journal-return-link-ui:hover{transform:translateY(-2px);border-color:rgba(155,150,255,.8)}
+#journal-return-link-ui span{color:#a8a2ff;font-size:15px}
+@media(max-width:600px){#journal-return-link-ui{left:12px;bottom:12px;padding:9px 12px}}
+</style>
+<a id="journal-return-link-ui" href="../../../index.html" aria-label="Return to Java DSA Journal"><span>↖</span> JOURNAL HOME</a>
+
+</body>
+</html>
