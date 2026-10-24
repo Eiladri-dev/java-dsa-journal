@@ -2,6 +2,8 @@
 
 A personal journal for documenting my Java and data structures & algorithms practice. The site organizes program walkthroughs by chapter and includes a searchable program library, chapter progress counts, and chapter-aware navigation.
 
+**Project Live on :** https://java-dsa-journal.onrender.com/
+
 ## **What this project does**
 
 * Organizes learning into 27 topic-based chapters, from Java foundations through interview patterns and revision.  
