@@ -1,0 +1,2969 @@
+<!DOCTYPE html>
+<html lang="en" data-density="balanced" data-glow="medium">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>The Last Signal — TheLastSignal.java dissected</title>
+<style>
+
+
+
+:root{
+  --bg:#05070d;
+  --panel:#0a0e17;
+  --ink:#e9edf8;
+  --muted:#9aa5bd;
+  --dim:#68728c;
+  --line:rgba(255,255,255,.075);
+  --line-strong:rgba(255,255,255,.16);
+  --brand:#4dd4ff;
+  --brand-2:#b6f24a;
+  --violet:#7dd3fc;
+  --amber:#ffb066;
+  --rose:#ff8ba0;
+  --green:#6ee7b7;
+  --sp:1;
+  --lh:1.65;
+  --glow:1;
+  --r:18px;
+  --wrap:1180px;
+  --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+}
+html[data-density="comfort"]{ --sp:1.2; --lh:1.8; }
+html[data-density="compact"]{ --sp:.76; --lh:1.55; }
+html[data-glow="low"]{ --glow:.4; }
+html[data-glow="high"]{ --glow:1.55; }
+
+*{ box-sizing:border-box; }
+html{ scroll-behavior:smooth; -webkit-text-size-adjust:100%; scroll-padding-top:84px; }
+body{
+  margin:0; padding:0;
+  background:var(--bg);
+  color:var(--ink);
+  font-family:"Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  font-size:16px;
+  line-height:var(--lh);
+  -webkit-font-smoothing:antialiased;
+  overflow-x:hidden;
+}
+p{ margin:0 0 calc(14px * var(--sp)); color:var(--muted); }
+p:last-child{ margin-bottom:0; }
+h1,h2,h3,h4{ margin:0; color:var(--ink); letter-spacing:-.025em; font-weight:640; line-height:1.14; }
+a{ color:var(--brand); text-decoration:none; }
+strong{ color:#f2f5ff; font-weight:620; }
+ul,ol{ margin:0 0 calc(14px * var(--sp)); padding-left:1.15em; color:var(--muted); }
+li{ margin-bottom:8px; }
+li::marker{ color:var(--brand); }
+::selection{ background:rgba(77,212,255,.32); color:#fff; }
+
+/* ---------- background ---------- */
+.bg-layer{ position:fixed; inset:0; z-index:0; pointer-events:none; overflow:hidden; }
+.orb{ position:absolute; border-radius:50%; filter:blur(90px); will-change:transform; }
+.orb-a{
+  width:52vw; height:52vw; top:-14vw; left:-10vw;
+  background:radial-gradient(circle at 40% 40%, rgba(77,212,255,.55), rgba(77,212,255,0) 68%);
+  opacity:calc(.5 * var(--glow));
+  animation:drift-a 26s ease-in-out infinite;
+}
+.orb-b{
+  width:46vw; height:46vw; top:22vh; right:-14vw;
+  background:radial-gradient(circle at 50% 50%, rgba(182,242,74,.42), rgba(182,242,74,0) 68%);
+  opacity:calc(.42 * var(--glow));
+  animation:drift-b 32s ease-in-out infinite;
+}
+.orb-c{
+  width:44vw; height:44vw; bottom:-16vw; left:24vw;
+  background:radial-gradient(circle at 50% 50%, rgba(183,156,255,.38), rgba(183,156,255,0) 70%);
+  opacity:calc(.34 * var(--glow));
+  animation:drift-c 38s ease-in-out infinite;
+}
+@keyframes drift-a{ 0%,100%{transform:translate3d(0,0,0) scale(1)} 50%{transform:translate3d(6vw,4vh,0) scale(1.08)} }
+@keyframes drift-b{ 0%,100%{transform:translate3d(0,0,0) scale(1.04)} 50%{transform:translate3d(-5vw,-6vh,0) scale(.94)} }
+@keyframes drift-c{ 0%,100%{transform:translate3d(0,0,0) scale(1)} 50%{transform:translate3d(4vw,-5vh,0) scale(1.1)} }
+
+.grid-lines{
+  position:absolute; inset:0;
+  background-image:
+    linear-gradient(to right, rgba(255,255,255,.05) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(255,255,255,.05) 1px, transparent 1px);
+  background-size:74px 74px;
+  mask-image:radial-gradient(ellipse 80% 60% at 50% 20%, #000 20%, transparent 78%);
+  -webkit-mask-image:radial-gradient(ellipse 80% 60% at 50% 20%, #000 20%, transparent 78%);
+  opacity:.5;
+}
+.noise{
+  position:absolute; inset:0; opacity:.22; mix-blend-mode:overlay;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)' opacity='0.4'/%3E%3C/svg%3E");
+}
+.vignette{ position:absolute; inset:0; background:radial-gradient(ellipse at 50% -10%, transparent 30%, rgba(5,7,13,.72) 82%); }
+
+/* ---------- nav ---------- */
+.nav{
+  position:fixed; top:0; left:0; right:0; z-index:80;
+  background:linear-gradient(180deg, rgba(5,7,13,.94), rgba(5,7,13,.56));
+  backdrop-filter:blur(16px) saturate(150%);
+  -webkit-backdrop-filter:blur(16px) saturate(150%);
+  border-bottom:1px solid rgba(255,255,255,.06);
+}
+.nav-in{
+  width:min(var(--wrap), 100% - 40px); margin-inline:auto;
+  display:flex; align-items:center; justify-content:space-between; gap:16px; height:62px;
+}
+.brand{ display:flex; align-items:center; gap:10px; font-weight:660; font-size:14.5px; letter-spacing:-.01em; color:var(--ink); white-space:nowrap; }
+.brand .dot{ width:9px; height:9px; border-radius:50%; background:var(--brand); box-shadow:0 0 16px var(--brand), 0 0 4px var(--brand); animation:pulse-dot 2.8s ease-in-out infinite; }
+@keyframes pulse-dot{ 0%,100%{ box-shadow:0 0 16px var(--brand), 0 0 4px var(--brand); } 50%{ box-shadow:0 0 26px var(--brand), 0 0 8px var(--brand); } }
+.brand span.sub{ color:var(--dim); font-weight:450; font-size:12.5px; letter-spacing:0; }
+.nav-links{ display:flex; gap:2px; align-items:center; min-width:0; }
+.nav-links a{
+  font-size:12.5px; color:var(--muted); padding:7px 10px; border-radius:9px;
+  transition:color .2s, background .2s, box-shadow .3s; white-space:nowrap;
+}
+.nav-links a:hover{ color:var(--ink); background:rgba(255,255,255,.055); }
+.nav-links a.active{
+  color:#fdf1e4; background:rgba(77,212,255,.13);
+  box-shadow:inset 0 0 0 1px rgba(77,212,255,.3), 0 0 24px -10px rgba(77,212,255,.9);
+}
+.progress{ position:absolute; left:0; right:0; bottom:-1px; height:2px; background:linear-gradient(90deg, var(--brand), var(--brand-2) 55%, var(--violet)); transform:scaleX(0); transform-origin:0 50%; transition:transform .1s linear; }
+
+/* ---------- layout ---------- */
+main{ position:relative; z-index:1; }
+.wrap{ width:min(var(--wrap), 100% - 44px); margin-inline:auto; }
+.section{ padding:calc(92px * var(--sp)) 0; position:relative; }
+.section + .section{ border-top:1px solid rgba(255,255,255,.045); }
+.eyebrow{
+  display:flex; align-items:center; gap:12px;
+  font-family:var(--mono); font-size:11.5px; font-weight:600; letter-spacing:.2em;
+  text-transform:uppercase; color:var(--dim);
+}
+.eyebrow::before{ content:""; width:34px; height:1px; background:linear-gradient(90deg, var(--brand), transparent); }
+.eyebrow b{ color:var(--brand); font-weight:600; }
+h2{ font-size:clamp(26px, 3.3vw, 40px); margin:16px 0 16px; }
+h3{ font-size:clamp(16.5px, 1.5vw, 19px); margin-bottom:10px; }
+.lead{ color:var(--muted); font-size:clamp(15px, 1.05vw, 17px); max-width:66ch; line-height:1.7; }
+.head{ margin-bottom:calc(38px * var(--sp)); max-width:74ch; }
+
+/* ---------- reveal ---------- */
+.reveal{ opacity:0; transform:translateY(22px); filter:blur(5px); transition:opacity .9s cubic-bezier(.22,1,.36,1), transform .9s cubic-bezier(.22,1,.36,1), filter .9s ease; transition-delay:var(--d, 0ms); }
+.reveal.in{ opacity:1; transform:none; filter:none; }
+
+/* ---------- cards ---------- */
+.card{
+  position:relative; border-radius:var(--r);
+  background:linear-gradient(158deg, rgba(255,255,255,.058), rgba(255,255,255,.014) 55%, rgba(255,255,255,.028));
+  border:1px solid var(--line);
+  padding:calc(24px * var(--sp));
+  box-shadow:0 1px 0 rgba(255,255,255,.05) inset, 0 30px 60px -42px rgba(0,0,0,.95);
+  transition:transform .5s cubic-bezier(.22,1,.36,1), border-color .4s, box-shadow .5s;
+  backdrop-filter:blur(10px);
+  overflow:hidden;
+}
+.card::before{
+  content:""; position:absolute; inset:0 0 auto 0; height:1px;
+  background:linear-gradient(90deg, transparent, rgba(77,212,255,.55), rgba(182,242,74,.35), transparent);
+  opacity:0; transition:opacity .5s;
+}
+.card:hover{ transform:translateY(-4px); border-color:var(--line-strong); box-shadow:0 1px 0 rgba(255,255,255,.07) inset, 0 46px 80px -48px rgba(0,0,0,1), 0 0 60px -34px rgba(77,212,255,.55); }
+.card:hover::before{ opacity:1; }
+.card h3{ display:flex; align-items:center; gap:10px; }
+.tag{
+  font-family:var(--mono); font-size:10.5px; letter-spacing:.12em; text-transform:uppercase;
+  padding:4px 8px; border-radius:6px; color:var(--brand);
+  background:rgba(77,212,255,.11); border:1px solid rgba(77,212,255,.22);
+}
+.grid{ display:grid; gap:calc(18px * var(--sp)); }
+.g3{ grid-template-columns:repeat(3, minmax(0,1fr)); }
+.g2{ grid-template-columns:repeat(2, minmax(0,1fr)); }
+@media (max-width:940px){ .g3{ grid-template-columns:1fr; } .g2{ grid-template-columns:1fr; } }
+
+/* ---------- hero ---------- */
+.hero{ position:relative; padding:calc(132px + 34px) 0 calc(84px * var(--sp)); }
+.hero-grid{ display:grid; grid-template-columns:1.06fr .94fr; gap:clamp(28px,4vw,56px); align-items:center; }
+@media (max-width:1020px){ .hero-grid{ grid-template-columns:1fr; gap:44px; } }
+.hero h1{ font-size:clamp(42px, 6.6vw, 82px); line-height:1.02; letter-spacing:-.045em; font-weight:660; }
+.hero h1 .file{ background:linear-gradient(100deg, #fff 6%, var(--brand) 42%, var(--brand-2) 74%, var(--violet)); -webkit-background-clip:text; background-clip:text; color:transparent; background-size:210% 100%; animation:sheen 9s ease-in-out infinite; }
+@keyframes sheen{ 0%,100%{ background-position:0% 50%; } 50%{ background-position:100% 50%; } }
+.hero .kicker{
+  display:inline-flex; align-items:center; gap:9px; margin-bottom:22px;
+  font-family:var(--mono); font-size:11.5px; letter-spacing:.16em; text-transform:uppercase; color:#c9d3ee;
+  padding:7px 13px 7px 9px; border-radius:999px;
+  background:rgba(255,255,255,.045); border:1px solid var(--line);
+  box-shadow:0 0 40px -22px rgba(77,212,255,.9);
+}
+.hero .kicker i{ width:6px; height:6px; border-radius:50%; background:var(--brand-2); box-shadow:0 0 12px var(--brand-2); font-style:normal; }
+.hero .sub{ font-size:clamp(15.5px, 1.35vw, 19px); color:#b9c3dc; max-width:52ch; margin-top:22px; line-height:1.62; }
+.chips{ display:flex; flex-wrap:wrap; gap:8px; margin-top:26px; }
+.chip{
+  font-family:var(--mono); font-size:11.8px; color:#c3cde8; padding:6px 11px; border-radius:8px;
+  background:rgba(255,255,255,.04); border:1px solid var(--line); transition:.3s;
+}
+.chip:hover{ border-color:rgba(77,212,255,.4); color:#fff; box-shadow:0 0 26px -14px rgba(77,212,255,.9); }
+.cta{ display:flex; flex-wrap:wrap; gap:12px; margin-top:34px; }
+.btn{
+  display:inline-flex; align-items:center; gap:9px; cursor:pointer;
+  font-family:inherit; font-size:14px; font-weight:560; letter-spacing:.005em;
+  padding:12px 20px; border-radius:12px; border:1px solid transparent;
+  transition:transform .35s cubic-bezier(.22,1,.36,1), box-shadow .35s, background .3s, border-color .3s;
+  text-decoration:none;
+}
+.btn-primary{
+  color:#080c16;
+  background:linear-gradient(135deg, #a7ecff, #4dd4ff 46%, #b6f24a);
+  box-shadow:0 0 0 1px rgba(255,255,255,.16) inset, 0 18px 46px -20px rgba(77,212,255,.95), 0 0 40px -22px rgba(182,242,74,.9);
+}
+.btn-primary:hover{ transform:translateY(-2px); box-shadow:0 0 0 1px rgba(255,255,255,.22) inset, 0 24px 54px -18px rgba(77,212,255,1), 0 0 54px -18px rgba(182,242,74,1); }
+.btn-ghost{ color:#d6ddf2; background:rgba(255,255,255,.045); border-color:var(--line-strong); }
+.btn-ghost:hover{ transform:translateY(-2px); background:rgba(255,255,255,.08); border-color:rgba(77,212,255,.42); box-shadow:0 0 42px -22px rgba(77,212,255,.9); }
+
+/* hero visual */
+.hero-vis{ position:relative; perspective:1200px; }
+.verdict-card{
+  position:relative; border-radius:22px; padding:calc(26px * var(--sp));
+  background:linear-gradient(165deg, rgba(20,26,42,.92), rgba(9,12,20,.92));
+  border:1px solid rgba(255,255,255,.1);
+  box-shadow:0 1px 0 rgba(255,255,255,.09) inset, 0 60px 120px -60px rgba(0,0,0,1), 0 0 90px -50px rgba(77,212,255,.85);
+  transform-style:preserve-3d;
+  transition:transform .35s ease-out;
+  animation:floaty 9s ease-in-out infinite;
+}
+@keyframes floaty{ 0%,100%{ translate:0 0; } 50%{ translate:0 -10px; } }
+.verdict-card .vc-head{ display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:18px; }
+.verdict-card .vc-head span{ font-family:var(--mono); font-size:11px; letter-spacing:.16em; text-transform:uppercase; color:var(--dim); }
+.vrow{
+  display:grid; grid-template-columns:92px 1fr auto; align-items:center; gap:12px;
+  padding:12px 12px; border-radius:11px; margin-bottom:8px;
+  background:rgba(255,255,255,.028); border:1px solid rgba(255,255,255,.06);
+  transition:transform .4s cubic-bezier(.22,1,.36,1), background .4s, border-color .4s;
+}
+.vrow:hover{ transform:translateX(4px); background:rgba(255,255,255,.05); }
+.vrow .k{ font-family:var(--mono); font-size:12px; color:#dbe3f7; white-space:nowrap; }
+.vrow .v{ font-size:13px; color:var(--muted); letter-spacing:-.005em; }
+.vrow .dotmark{ width:8px; height:8px; border-radius:50%; box-shadow:0 0 14px currentColor; }
+.vrow.p{ color:var(--brand-2); } .vrow.p .k{ color:#b9f5e9; }
+.vrow.c{ color:var(--brand); }
+.vrow.one{ color:var(--violet); }
+.vrow.err{ color:var(--amber); }
+.vrow.err .v{ color:#ffcf9e; }
+.vrow.err{ box-shadow:0 0 34px -22px rgba(255,176,102,.9); }
+.orbit{
+  position:absolute; inset:-38px; border-radius:50%;
+  border:1px dashed rgba(77,212,255,.16);
+  animation:spin 46s linear infinite; pointer-events:none;
+}
+.orbit::after{ content:""; position:absolute; top:-3px; left:50%; width:6px; height:6px; border-radius:50%; background:var(--brand-2); box-shadow:0 0 16px var(--brand-2); }
+@keyframes spin{ to{ transform:rotate(360deg); } }
+.scrollcue{ display:flex; align-items:center; gap:10px; margin-top:calc(52px * var(--sp)); color:var(--dim); font-family:var(--mono); font-size:11px; letter-spacing:.18em; text-transform:uppercase; }
+.scrollcue .bar{ width:52px; height:1px; background:linear-gradient(90deg, var(--brand), transparent); position:relative; overflow:hidden; }
+.scrollcue .bar::after{ content:""; position:absolute; inset:0; background:var(--brand-2); animation:sweep 2.6s ease-in-out infinite; }
+@keyframes sweep{ 0%{ transform:translateX(-100%); } 60%,100%{ transform:translateX(100%); } }
+
+/* ---------- prose blocks ---------- */
+.prose{ max-width:74ch; }
+.prose h3{ margin-top:calc(26px * var(--sp)); }
+.prose ul{ padding-left:1.1em; }
+.note{
+  margin:calc(18px * var(--sp)) 0 0; padding:14px 16px; border-radius:12px;
+  background:rgba(77,212,255,.07); border:1px solid rgba(77,212,255,.2);
+  color:#c8d3f0; font-size:14.5px;
+}
+.note.warn{ background:rgba(255,176,102,.075); border-color:rgba(255,176,102,.26); color:#ffd8b4; }
+.note.ok{ background:rgba(110,231,183,.06); border-color:rgba(110,231,183,.24); color:#c4f5e2; }
+.note b{ color:#fff; }
+
+/* ---------- code ---------- */
+.code{
+  position:relative; border-radius:14px; overflow:hidden;
+  background:linear-gradient(180deg, #080b13, #060910);
+  border:1px solid rgba(255,255,255,.085);
+  box-shadow:0 1px 0 rgba(255,255,255,.05) inset, 0 34px 70px -46px #000;
+  font-family:var(--mono); font-size:13px; line-height:1.72;
+}
+.code .cb{
+  display:flex; align-items:center; justify-content:space-between; gap:12px;
+  padding:9px 14px; border-bottom:1px solid rgba(255,255,255,.07);
+  background:rgba(255,255,255,.022);
+}
+.code .cb .fname{ font-size:11.5px; color:#a9b4cd; letter-spacing:.02em; display:flex; align-items:center; gap:8px; }
+.code .cb .fname i{ width:7px; height:7px; border-radius:50%; background:var(--brand); box-shadow:0 0 12px var(--brand); font-style:normal; }
+.code pre{ margin:0; padding:16px 18px; overflow-x:auto; color:#cfd8ee; }
+.code pre::-webkit-scrollbar{ height:8px; }
+.code pre::-webkit-scrollbar-thumb{ background:rgba(255,255,255,.14); border-radius:99px; }
+.tok-k{ color:#9aa9ff; } .tok-t{ color:#b6f24a; } .tok-s{ color:#b6f24a; } .tok-c{ color:#5f6b86; font-style:italic; } .tok-n{ color:#f2a8c0; } .tok-m{ color:#c6b3ff; }
+.ln{ display:inline-block; width:2.1em; color:#3d475f; user-select:none; text-align:right; margin-right:14px; }
+.src-note{ font-size:13px; color:var(--dim); margin-top:12px; }
+
+/* inline code */
+code.inl{
+  font-family:var(--mono); font-size:.88em; color:#d7e0f6;
+  background:rgba(255,255,255,.062); border:1px solid rgba(255,255,255,.085);
+  padding:1.5px 6px; border-radius:6px; white-space:nowrap;
+}
+
+/* ---------- tables ---------- */
+.tablewrap.tight table{ min-width:0; font-size:12.9px; }
+.tablewrap.tight tbody td{ padding:11px 12px; }
+.tablewrap.tight thead th{ padding:11px 12px; font-size:10.5px; }
+.tablewrap{ overflow-x:auto; border-radius:14px; border:1px solid var(--line); background:rgba(255,255,255,.02); }
+table{ width:100%; border-collapse:collapse; font-size:14px; min-width:560px; }
+thead th{
+  text-align:left; padding:13px 16px; font-family:var(--mono); font-size:11px;
+  letter-spacing:.14em; text-transform:uppercase; color:var(--dim); font-weight:600;
+  border-bottom:1px solid var(--line); white-space:nowrap;
+}
+tbody td{ padding:13px 16px; border-bottom:1px solid rgba(255,255,255,.045); color:var(--muted); vertical-align:top; }
+tbody tr:last-child td{ border-bottom:none; }
+tbody tr{ transition:background .25s; }
+tbody tr:hover{ background:rgba(77,212,255,.055); }
+td.mono, th.mono, .mono{ font-family:var(--mono); font-size:12.6px; color:#cbd5ee; }
+.pill{ display:inline-block; padding:2px 9px; border-radius:99px; font-family:var(--mono); font-size:11.5px; border:1px solid; }
+.pill.ok{ color:#9df3d3; border-color:rgba(110,231,183,.35); background:rgba(110,231,183,.09); }
+.pill.bad{ color:#ffc79b; border-color:rgba(255,176,102,.35); background:rgba(255,176,102,.09); }
+.pill.neu{ color:#c3cffe; border-color:rgba(77,212,255,.35); background:rgba(77,212,255,.09); }
+.pill.vio{ color:#dcc7ff; border-color:rgba(183,156,255,.35); background:rgba(183,156,255,.1); }
+
+/* ---------- terminal ---------- */
+.sim{ display:grid; grid-template-columns:1.32fr .68fr; gap:calc(18px * var(--sp)); align-items:start; }
+@media (max-width:980px){ .sim{ grid-template-columns:1fr; } }
+.term{
+  border-radius:16px; overflow:hidden; border:1px solid rgba(255,255,255,.1);
+  background:linear-gradient(180deg, #070a11, #05070c);
+  box-shadow:0 1px 0 rgba(255,255,255,.06) inset, 0 50px 100px -60px #000, 0 0 80px -50px rgba(182,242,74,.6);
+}
+.term-bar{ display:flex; align-items:center; gap:10px; padding:10px 14px; border-bottom:1px solid rgba(255,255,255,.07); background:rgba(255,255,255,.024); }
+.term-bar .dots{ display:flex; gap:6px; }
+.term-bar .dots i{ width:9px; height:9px; border-radius:50%; background:#2b3246; }
+.term-bar .dots i:nth-child(1){ background:#ff6b6b55; } .term-bar .dots i:nth-child(2){ background:#ffd16655; } .term-bar .dots i:nth-child(3){ background:#6ee7b766; }
+.term-bar .tt{ font-family:var(--mono); font-size:11.5px; color:#8d99b4; letter-spacing:.03em; }
+.term-bar .live{ margin-left:auto; display:inline-flex; align-items:center; gap:6px; font-family:var(--mono); font-size:10.5px; letter-spacing:.14em; text-transform:uppercase; color:#8ff0d3; }
+.term-bar .live i{ width:6px; height:6px; border-radius:50%; background:#6ee7b7; box-shadow:0 0 12px #6ee7b7; animation:pulse-dot 2s ease-in-out infinite; }
+.term-body{
+  font-family:var(--mono); font-size:13px; line-height:1.75; padding:16px 16px 8px;
+  height:320px; overflow-y:auto; color:#cfd8ee;
+}
+.term-body::-webkit-scrollbar{ width:8px; }
+.term-body::-webkit-scrollbar-thumb{ background:rgba(255,255,255,.13); border-radius:99px; }
+.l{ animation:lineIn .32s cubic-bezier(.22,1,.36,1) both; white-space:pre-wrap; word-break:break-word; }
+@keyframes lineIn{ from{ opacity:0; transform:translateY(5px); } to{ opacity:1; transform:none; } }
+.l-prompt{ color:#a7ecff; }
+.l-in{ color:#6f7c98; }
+.l-in::before{ content:"› "; color:#4b5670; }
+.l-div{ color:#b6f24a; }
+.l-res{ color:#ffffff; font-weight:600; }
+.l-err{ color:#ff9e9e; }
+.l-note{ color:#5d6a85; font-style:italic; }
+.l-sep{ color:#3f4a62; letter-spacing:.1em; margin:6px 0; }
+.caret{ display:inline-block; width:7px; height:14px; background:#a7ecff; vertical-align:-2px; animation:blink 1.05s steps(1) infinite; }
+@keyframes blink{ 50%{ opacity:0; } }
+.term-form{ display:flex; align-items:center; gap:10px; padding:12px 14px; border-top:1px solid rgba(255,255,255,.07); background:rgba(255,255,255,.018); }
+.term-form .pfx{ font-family:var(--mono); color:#6ee7b7; font-size:14px; }
+.term-form input{
+  flex:1; min-width:0; background:transparent; border:none; outline:none;
+  font-family:var(--mono); font-size:13.5px; color:#eaf0ff; padding:6px 0;
+}
+.term-form input::placeholder{ color:#4d5871; }
+.term-form button{
+  font-family:var(--mono); font-size:11.5px; letter-spacing:.1em; text-transform:uppercase;
+  padding:8px 14px; border-radius:9px; cursor:pointer; color:#08111a; border:none;
+  background:linear-gradient(135deg, #a7ecff, #b6f24a);
+  box-shadow:0 0 28px -12px rgba(77,212,255,.9); transition:.28s;
+}
+.term-form button:hover{ filter:brightness(1.08); box-shadow:0 0 34px -8px rgba(77,212,255,1); }
+.presets{ display:flex; flex-wrap:wrap; gap:7px; margin-top:14px; }
+.preset{
+  font-family:var(--mono); font-size:12px; padding:6px 11px; border-radius:8px; cursor:pointer;
+  color:#c2cdeb; background:rgba(255,255,255,.04); border:1px solid var(--line); transition:.26s;
+}
+.preset:hover{ color:#fff; border-color:rgba(77,212,255,.45); background:rgba(77,212,255,.1); box-shadow:0 0 30px -16px rgba(77,212,255,1); transform:translateY(-1px); }
+.preset small{ color:var(--dim); font-size:10px; margin-left:5px; letter-spacing:.06em; text-transform:uppercase; }
+.preset.ghost{ color:#8c97b1; }
+
+/* state panel */
+.state{ display:grid; gap:10px; }
+.stat{
+  display:flex; align-items:center; justify-content:space-between; gap:10px;
+  padding:12px 14px; border-radius:11px;
+  background:rgba(255,255,255,.03); border:1px solid rgba(255,255,255,.07);
+}
+.stat .lab{ font-family:var(--mono); font-size:11px; letter-spacing:.12em; text-transform:uppercase; color:var(--dim); }
+.stat .val{ font-family:var(--mono); font-size:15px; color:#eaf0ff; }
+.stat .val.hot{ color:#b6f24a; text-shadow:0 0 22px rgba(182,242,74,.65); }
+.stat.note-stat{ display:block; }
+.stat.note-stat .lab{ display:block; margin-bottom:5px; }
+.stat.note-stat .val{ display:block; font-size:12.5px; line-height:1.6; color:#b9c3dc; font-family:var(--mono); }
+.stat .val.warnv{ color:#ffc79b; }
+
+/* ---------- trace ---------- */
+.trace{ }
+.trace-bar{ display:flex; flex-wrap:wrap; align-items:center; gap:10px; margin-bottom:16px; }
+.tbtn{
+  font-family:var(--mono); font-size:12px; padding:8px 13px; border-radius:9px; cursor:pointer;
+  color:#cbd6f2; background:rgba(255,255,255,.045); border:1px solid var(--line); transition:.26s;
+}
+.tbtn:hover:not(:disabled){ color:#fff; border-color:rgba(77,212,255,.45); box-shadow:0 0 30px -16px rgba(77,212,255,1); }
+.tbtn:disabled{ opacity:.35; cursor:not-allowed; }
+.tbtn.primary{ background:rgba(77,212,255,.16); border-color:rgba(77,212,255,.4); color:#e8edff; }
+select{
+  font-family:var(--mono); font-size:12.5px; padding:8px 12px; border-radius:9px; cursor:pointer;
+  color:#eaf0ff; background:#0c1119; border:1px solid var(--line-strong); outline:none;
+}
+.trace-count{ margin-left:auto; font-family:var(--mono); font-size:11.5px; color:var(--dim); letter-spacing:.08em; }
+.trace-grid{ display:grid; grid-template-columns:1.15fr .85fr; gap:calc(18px * var(--sp)); align-items:start; }
+@media (max-width:980px){ .trace-grid{ grid-template-columns:1fr; } }
+.now-card{
+  border-radius:16px; padding:calc(22px * var(--sp)); position:relative; overflow:hidden;
+  background:linear-gradient(160deg, rgba(24,31,50,.85), rgba(8,11,18,.9));
+  border:1px solid rgba(77,212,255,.22);
+  box-shadow:0 1px 0 rgba(255,255,255,.07) inset, 0 40px 80px -55px #000, 0 0 70px -46px rgba(77,212,255,.9);
+}
+.now-card .stepno{ font-family:var(--mono); font-size:11px; letter-spacing:.18em; text-transform:uppercase; color:var(--brand); }
+.now-card h3{ margin:10px 0 8px; font-size:clamp(17px,1.6vw,21px); }
+.now-card .detail{ color:#b2bdd8; font-size:14.5px; margin:0; min-height:2.6em; }
+.now-card .stepno, .now-card h3, .now-card .detail{ transition:opacity .22s ease, transform .22s ease; }
+.now-card.swap .stepno, .now-card.swap h3, .now-card.swap .detail{ opacity:0; transform:translateY(-4px); }
+.vtile{ transition:border-color .35s, box-shadow .35s, background .35s; }
+.vars{ display:grid; grid-template-columns:repeat(3, minmax(0,1fr)); gap:8px; margin-top:18px; }
+.vtile{ padding:9px 11px; border-radius:10px; background:rgba(255,255,255,.035); border:1px solid rgba(255,255,255,.07); }
+.vtile .k{ font-family:var(--mono); font-size:10px; letter-spacing:.1em; text-transform:uppercase; color:var(--dim); }
+.vtile .v{ font-family:var(--mono); font-size:14px; color:#eaf0ff; margin-top:2px; }
+.vtile.changed{ border-color:rgba(182,242,74,.45); box-shadow:0 0 26px -14px rgba(182,242,74,.9); }
+.vtile.changed .v{ color:#b6f24a; }
+.tc-body{ font-family:var(--mono); font-size:12.5px; line-height:1.7; padding:14px 16px; height:250px; overflow-y:auto; color:#cfd8ee; background:linear-gradient(180deg,#070a11,#05070c); border-radius:12px; border:1px solid rgba(255,255,255,.08); }
+.tc-head{ font-family:var(--mono); font-size:10.5px; letter-spacing:.16em; text-transform:uppercase; color:var(--dim); margin-bottom:8px; }
+.rail{ display:flex; flex-wrap:wrap; gap:5px; margin-top:18px; }
+.rail button{ width:24px; height:6px; border-radius:99px; border:none; cursor:pointer; background:rgba(255,255,255,.1); padding:0; transition:.25s; }
+.rail button:hover{ background:rgba(255,255,255,.26); }
+.rail button.done{ background:rgba(77,212,255,.45); }
+.rail button.cur{ background:linear-gradient(90deg,var(--brand),var(--brand-2)); box-shadow:0 0 16px rgba(77,212,255,.85); }
+
+/* ---------- call stack ---------- */
+.stack{
+  margin-top:12px; padding:12px 14px; border-radius:12px;
+  background:rgba(255,255,255,.025); border:1px solid rgba(255,255,255,.07);
+}
+.stack .sh{ font-family:var(--mono); font-size:10.5px; letter-spacing:.16em; text-transform:uppercase; color:var(--dim); margin-bottom:9px; display:flex; justify-content:space-between; gap:10px; }
+.stack .sh b{ color:#b6f24a; font-weight:600; }
+.frame{
+  display:flex; align-items:center; gap:10px;
+  font-family:var(--mono); font-size:12px; color:#8e9ab5;
+  padding:8px 11px; border-radius:9px; margin-bottom:6px;
+  background:rgba(255,255,255,.022); border:1px solid rgba(255,255,255,.055);
+  transition:.4s cubic-bezier(.22,1,.36,1);
+}
+.frame:last-child{ margin-bottom:0; }
+.frame .name{ flex:0 0 auto; }
+.frame .meta{ font-size:10.5px; letter-spacing:.04em; color:#535e77; margin-left:auto; text-align:right; }
+.frame.active{
+  color:#eef3ff; border-color:rgba(77,212,255,.42);
+  background:rgba(77,212,255,.1);
+  box-shadow:0 0 34px -22px rgba(77,212,255,1), inset 0 0 0 1px rgba(77,212,255,.08);
+  transform:translateX(4px);
+}
+.frame.active .meta{ color:#a7ecff; }
+.frame.active::before{
+  content:""; width:6px; height:6px; border-radius:50%; margin-right:2px;
+  background:var(--brand-2); box-shadow:0 0 12px var(--brand-2);
+}
+.frame.active{ padding-left:9px; }
+.frame{ padding-left:11px; }
+
+/* ---------- flow ---------- */
+.flow{ display:grid; gap:10px; margin-top:6px; }
+.fnode{
+  display:grid; grid-template-columns:auto 1fr; gap:14px; align-items:start;
+  padding:14px 16px; border-radius:12px;
+  background:rgba(255,255,255,.03); border:1px solid var(--line);
+  transition:.35s; position:relative;
+}
+.fnode:hover{ border-color:rgba(77,212,255,.34); background:rgba(77,212,255,.055); }
+.fnode .cond{ font-family:var(--mono); font-size:12.5px; color:#dfe6f8; padding-top:1px; white-space:nowrap; }
+.fnode .act{ font-size:14px; color:var(--muted); }
+.fnode.key{ border-color:rgba(182,242,74,.3); box-shadow:0 0 40px -30px rgba(182,242,74,.9); }
+.fnode.bad{ border-color:rgba(255,176,102,.3); }
+.arrow{ text-align:center; color:#39445c; font-size:13px; line-height:1; }
+
+/* ---------- takeaways / challenge ---------- */
+.challenge{ border-radius:16px; padding:calc(22px * var(--sp)); background:linear-gradient(150deg, rgba(77,212,255,.1), rgba(182,242,74,.05)); border:1px solid rgba(77,212,255,.24); }
+.challenge h3{ margin-bottom:8px; }
+.reveal-btn{ margin-top:12px; }
+.answer{ display:none; margin-top:14px; padding:14px 16px; border-radius:11px; background:rgba(5,7,13,.6); border:1px solid rgba(255,255,255,.09); color:#c6d1ec; font-size:14.2px; }
+.answer.open{ display:block; animation:lineIn .4s cubic-bezier(.22,1,.36,1) both; }
+
+/* ---------- source ---------- */
+.src-wrap{ position:relative; }
+.copy-btn{
+  font-family:var(--mono); font-size:11px; letter-spacing:.1em; text-transform:uppercase; cursor:pointer;
+  padding:6px 11px; border-radius:7px; color:#cfd8ee; background:rgba(255,255,255,.06);
+  border:1px solid var(--line-strong); transition:.26s;
+}
+.copy-btn:hover{ color:#fff; border-color:rgba(77,212,255,.5); box-shadow:0 0 26px -14px rgba(77,212,255,1); }
+.copy-btn.ok{ color:#8ff0d3; border-color:rgba(110,231,183,.5); }
+
+/* ---------- complexity ---------- */
+.bars{ display:grid; gap:10px; margin-top:8px; }
+.barrow{ display:grid; grid-template-columns:96px 1fr 118px; gap:12px; align-items:center; font-family:var(--mono); font-size:12px; color:#b6c1da; }
+.bartrack{ height:8px; border-radius:99px; background:rgba(255,255,255,.06); overflow:hidden; }
+.barfill{ height:100%; width:0; border-radius:99px; background:linear-gradient(90deg, var(--brand), var(--brand-2)); box-shadow:0 0 24px -6px rgba(77,212,255,.85); transition:width 1.1s cubic-bezier(.22,1,.36,1); }
+.barrow .ops{ color:var(--dim); text-align:right; font-size:11.5px; }
+
+/* ---------- dock (collapsed by default: never covers the page) ---------- */
+.dock{
+  position:fixed; left:50%; bottom:16px; z-index:70;
+  transform:translateX(-50%);
+  display:flex; flex-direction:column; align-items:flex-end; gap:8px;
+  transition:opacity .55s ease;
+}
+.dock.idle{ opacity:.6; }
+.dock.idle:hover, .dock.panel-open{ opacity:1; }
+.dock-toggle{
+  display:flex; align-items:center; gap:9px; cursor:pointer;
+  font-family:var(--mono); font-size:11px; letter-spacing:.08em; text-transform:uppercase;
+  padding:8px 13px; border-radius:999px; color:#c3cde8;
+  background:rgba(9,12,20,.87);
+  backdrop-filter:blur(14px) saturate(150%); -webkit-backdrop-filter:blur(14px) saturate(150%);
+  border:1px solid rgba(255,255,255,.11);
+  box-shadow:0 18px 44px -26px #000, 0 0 34px -24px rgba(77,212,255,.9);
+  transition:color .28s, border-color .28s, box-shadow .3s, transform .3s;
+}
+.dock-toggle:hover{ color:#fff; border-color:rgba(77,212,255,.5); box-shadow:0 18px 44px -26px #000, 0 0 40px -18px rgba(77,212,255,.95); }
+.dock-toggle .g{ width:6px; height:6px; border-radius:50%; background:var(--brand-2); box-shadow:0 0 10px var(--brand-2); animation:pulse-dot 2.8s ease-in-out infinite; }
+.dock-toggle .chev{ transition:transform .38s cubic-bezier(.22,1,.36,1); display:block; }
+.dock.panel-open .dock-toggle .chev{ transform:rotate(180deg); }
+.dock-panel{
+  display:flex; align-items:center; gap:14px; flex-wrap:wrap; justify-content:flex-end;
+  max-height:0; opacity:0; padding:0 12px; overflow:hidden;
+  border-radius:14px; background:rgba(9,12,20,.9);
+  border:1px solid rgba(255,255,255,.1);
+  backdrop-filter:blur(16px) saturate(150%); -webkit-backdrop-filter:blur(16px) saturate(150%);
+  box-shadow:0 26px 56px -30px #000, 0 0 50px -34px rgba(77,212,255,.9);
+  transform:translateY(10px) scale(.98); transform-origin:100% 100%; pointer-events:none;
+  transition:max-height .42s cubic-bezier(.22,1,.36,1), opacity .3s ease, transform .42s cubic-bezier(.22,1,.36,1), padding .3s;
+}
+.dock.panel-open .dock-panel{ max-height:120px; opacity:1; padding:10px 12px; transform:none; pointer-events:auto; }
+.dock .grp{ display:flex; align-items:center; gap:8px; }
+.dock .glab{ font-family:var(--mono); font-size:10px; letter-spacing:.16em; text-transform:uppercase; color:var(--dim); }
+.seg{ display:flex; gap:2px; padding:2px; border-radius:9px; background:rgba(255,255,255,.05); border:1px solid rgba(255,255,255,.07); }
+.seg button{
+  font-family:var(--mono); font-size:11px; letter-spacing:.02em; padding:5px 9px; border-radius:7px;
+  border:none; background:transparent; color:#9aa5bd; cursor:pointer; transition:.26s;
+}
+.seg button:hover{ color:#e6ecff; }
+.seg button.on{ color:#0a0f18; background:linear-gradient(135deg,#a7ecff,#b6f24a); box-shadow:0 0 22px -10px rgba(77,212,255,1); }
+@media (max-width:720px){ .dock{ bottom:12px; } .dock .glab{ display:none; } .seg button{ font-size:10px; padding:5px 7px; } .dock-toggle{ font-size:10px; padding:7px 11px; } }
+
+/* ---------- footer ---------- */
+footer{ position:relative; z-index:1; border-top:1px solid rgba(255,255,255,.06); padding:44px 0 96px; }
+.foot-in{ display:flex; flex-wrap:wrap; gap:18px; justify-content:space-between; align-items:center; }
+.foot-in p{ margin:0; font-size:13px; color:var(--dim); }
+.foot-in .mono{ font-size:11.5px; color:#4f5a73; }
+
+@media (prefers-reduced-motion: reduce){
+  *, *::before, *::after{ animation-duration:.001ms !important; animation-iteration-count:1 !important; transition-duration:.001ms !important; }
+  html{ scroll-behavior:auto; }
+  .reveal{ opacity:1; transform:none; filter:none; }
+}
+
+/* ---- narrow-screen safety: long words must never widen a grid column ---- */
+.hero-copy, .hero-vis, .hero-grid > *, .sim > *, .trace-grid > *, .grid > *, .wrap > *, .card{ min-width:0; }
+.hero h1{ font-size:clamp(30px, 6.4vw, 66px); overflow-wrap:anywhere; letter-spacing:-.04em; }
+.hero h1 .file{ display:inline-block; }
+.chip{ max-width:100%; overflow-wrap:anywhere; }
+.code pre, .stream, .term-body, .tc-body{ max-width:100%; }
+.brand{ overflow:hidden; text-overflow:ellipsis; }
+@media (max-width:520px){
+  .wrap{ width:calc(100% - 28px); }
+  .chips{ gap:6px; }
+  .chip{ font-size:11px; }
+  .section{ padding:calc(62px * var(--sp)) 0; }
+}
+
+
+@media (max-width:1020px){
+  .orbit{ display:none; }
+  .hero-vis{ overflow:hidden; }
+  .hero-grid{ gap:34px; }
+}
+@media (max-width:520px){
+  .verdict-card{ padding:18px; }
+  .rmap{ gap:5px; }
+  .rtile{ width:32px; height:32px; font-size:11.5px; border-radius:9px; }
+}
+
+
+@media (max-width:520px){
+  .brand{ flex:0 0 auto; max-width:34vw; }
+  .nav-in{ gap:6px; }
+  .nav-links a{ padding:6px 8px; font-size:12px; }
+}
+
+
+/* ================= Bin2dec components ================= */
+.bits{ display:flex; flex-direction:column; gap:6px; }
+.bitrow{
+  display:grid; grid-template-columns:30px 1fr auto; gap:10px; align-items:center;
+  padding:7px 10px; border-radius:10px;
+  background:rgba(255,255,255,.028); border:1px solid rgba(255,255,255,.07);
+  opacity:0; transform:translateY(7px);
+}
+.bitrow.in{ opacity:1; transform:none; transition:opacity .45s ease, transform .45s cubic-bezier(.22,1,.36,1), border-color .3s, background .3s; transition-delay:var(--bd,0ms); }
+.bitrow.hot{ border-color:rgba(77,212,255,.45); background:rgba(77,212,255,.08); }
+.bitrow.bad{ border-color:rgba(248,113,113,.45); background:rgba(248,113,113,.08); }
+.bitrow .digit{
+  width:28px; height:28px; display:grid; place-items:center; border-radius:7px;
+  font-family:var(--mono); font-size:14px; font-weight:700;
+}
+.digit.one{ background:linear-gradient(140deg,#d9fca8,#4dd4ff); color:#062515; box-shadow:0 0 22px -10px rgba(77,212,255,1); }
+.digit.zero{ background:rgba(255,255,255,.05); color:#7c879e; border:1px solid rgba(255,255,255,.1); font-weight:500; }
+.digit.bad{ background:linear-gradient(140deg,#fecaca,#f87171); color:#2a0b0b; }
+.bitrow .expr{ font-family:var(--mono); font-size:12px; color:#c6d0e6; line-height:1.35; }
+.bitrow .expr i{ font-style:normal; color:#8b96ae; }
+.bitrow .val{ font-family:var(--mono); font-size:13.5px; color:#b6f24a; text-align:right; white-space:nowrap; }
+.bitrow .val.small{ font-size:11.5px; color:#6f7a92; }
+
+.odo{
+  display:flex; align-items:baseline; gap:14px; padding:14px 16px; border-radius:12px;
+  background:linear-gradient(120deg, rgba(77,212,255,.1), rgba(182,242,74,.06));
+  border:1px solid rgba(77,212,255,.24);
+}
+.odo .lab{ font-family:var(--mono); font-size:10.5px; letter-spacing:.16em; text-transform:uppercase; color:#7f97a3; }
+.odo .num{
+  font-family:var(--mono); font-size:clamp(28px,4vw,42px); letter-spacing:-.02em; line-height:1;
+  background:linear-gradient(100deg,#d9fca8,#4dd4ff 45%,#b6f24a);
+  -webkit-background-clip:text; background-clip:text; color:transparent;
+}
+.odo .eq{ margin-left:auto; font-family:var(--mono); font-size:12px; color:#8b96ae; }
+
+/* recursion frames */
+.frames{ display:grid; gap:6px; margin-top:8px; }
+.mframe{
+  display:flex; align-items:center; gap:10px; padding:8px 11px; border-radius:9px;
+  font-family:var(--mono); font-size:11.8px; color:#98a3ba;
+  background:rgba(255,255,255,.025); border:1px solid rgba(255,255,255,.06);
+  animation:mframeIn .4s cubic-bezier(.22,1,.36,1) both;
+}
+@keyframes mframeIn{ from{ opacity:0; transform:translateX(-8px);} to{opacity:1; transform:none;} }
+.mframe .tag2{ font-size:9.5px; letter-spacing:.12em; text-transform:uppercase; color:#7b8698; border:1px solid rgba(255,255,255,.12); border-radius:5px; padding:1px 5px; }
+.mframe.deep{ border-color:rgba(248,113,113,.4); color:#ffc9c9; background:rgba(248,113,113,.08); }
+.mframe.deep .tag2{ color:#ffb3b3; border-color:rgba(248,113,113,.4); }
+.mframe .mv{ margin-left:auto; color:#c6d0e6; }
+
+/* warning / callout strip */
+.strip-warn{
+  display:flex; gap:10px; align-items:flex-start; padding:11px 13px; border-radius:10px; margin-top:10px;
+  background:rgba(248,113,113,.08); border:1px solid rgba(248,113,113,.28); color:#ffc9c9; font-size:13px;
+}
+.strip-warn b{ color:#fff; }
+
+/* weight chips in hero */
+.weights{ display:flex; gap:8px; margin-top:2px; }
+.wchip{ font-family:var(--mono); font-size:10.5px; color:#8b96ae; width:40px; text-align:center; padding:3px 0; border-radius:6px; background:rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.07); }
+.wchip.on{ color:#062515; background:linear-gradient(140deg,#d9fca8,#4dd4ff); border-color:transparent; font-weight:700; }
+
+/* bit ribbon for hero */
+.ribbon{ display:flex; align-items:center; gap:8px; justify-content:center; margin:6px 0 4px; flex-wrap:wrap; }
+.ribbon .cell{
+  width:40px; height:52px; border-radius:10px; display:grid; place-items:center;
+  font-family:var(--mono); font-size:19px; font-weight:700;
+  animation:cellIn .55s cubic-bezier(.22,1,.36,1) both; animation-delay:var(--cd,0ms);
+}
+@keyframes cellIn{ from{ opacity:0; transform:translateY(10px) rotateX(-40deg);} to{opacity:1; transform:none;} }
+.ribbon .cell.on{ color:#062515; background:linear-gradient(160deg,#d9fca8,#4dd4ff); box-shadow:0 0 26px -10px rgba(77,212,255,1), inset 0 1px 0 rgba(255,255,255,.6); }
+.ribbon .cell.off{ color:#5f6a80; background:rgba(255,255,255,.035); border:1px solid rgba(255,255,255,.09); }
+.ribbon .op{ color:#4b5670; font-family:var(--mono); font-size:13px; }
+.ribbon .res{
+  font-family:var(--mono); font-size:22px; color:#e9eefc; padding-left:10px; border-left:1px solid rgba(255,255,255,.12);
+}
+
+/* --- shared text blocks used on this page --- */
+.stream{
+  font-family:var(--mono); font-size:13px; color:#e8eefc; padding:12px 14px; border-radius:11px;
+  background:rgba(255,255,255,.03); border:1px solid rgba(255,255,255,.08);
+  white-space:pre-wrap; word-break:break-word; line-height:1.75;
+}
+.meter{ display:grid; grid-template-columns:repeat(auto-fit,minmax(110px,1fr)); gap:9px; margin-top:6px; }
+.meter .m{ padding:11px 12px; border-radius:11px; background:rgba(255,255,255,.03); border:1px solid rgba(255,255,255,.07); }
+.meter .m .k{ font-family:var(--mono); font-size:10px; letter-spacing:.13em; text-transform:uppercase; color:var(--dim); }
+.meter .m .v{ font-family:var(--mono); font-size:16px; color:#eef3ff; margin-top:3px; }
+.meter .m .v.hi{ color:#b6f24a; text-shadow:0 0 22px rgba(77,212,255,.55); }
+.delta{ display:grid; gap:9px; margin-top:4px; }
+.drow{ display:grid; grid-template-columns:120px 1fr; gap:12px; align-items:start; font-size:13.6px; }
+.drow .dk{ font-family:var(--mono); font-size:11px; letter-spacing:.1em; text-transform:uppercase; color:var(--dim); padding-top:3px; }
+.drow .dv{ color:var(--muted); }
+.drow .dv b{ color:#dceff5; }
+@media (max-width:560px){ .drow{ grid-template-columns:1fr; gap:2px; } }
+
+
+/* ================= pattern-chapter components ================= */
+.lab{ display:grid; grid-template-columns:1.45fr .55fr; gap:calc(18px * var(--sp)); align-items:start; }
+@media (max-width:980px){ .lab{ grid-template-columns:1fr; } }
+
+.canvas-wrap{
+  border-radius:16px; padding:calc(18px * var(--sp)); position:relative; overflow:hidden;
+  background:
+    linear-gradient(180deg, rgba(10,20,30,.9), rgba(6,12,19,.94));
+  border:1px solid rgba(77,212,255,.18);
+  box-shadow:0 1px 0 rgba(255,255,255,.06) inset, 0 50px 90px -60px #000, 0 0 80px -50px rgba(77,212,255,.8);
+}
+.canvas-wrap::before{
+  content:""; position:absolute; inset:0; pointer-events:none;
+  background-image:
+    linear-gradient(to right, rgba(77,212,255,.07) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(77,212,255,.07) 1px, transparent 1px);
+  background-size:18px 18px; opacity:.55;
+}
+.canvas-scroll{ position:relative; overflow-x:auto; padding-bottom:6px; }
+.canvas-scroll::-webkit-scrollbar{ height:8px; }
+.canvas-scroll::-webkit-scrollbar-thumb{ background:rgba(77,212,255,.3); border-radius:99px; }
+
+.canvas{
+  display:grid; gap:2px; position:relative;
+  grid-template-columns:34px repeat(var(--cols, 15), 18px);
+  width:max-content;
+}
+.canvas .rx{
+  font-family:var(--mono); font-size:10px; color:#4a6270; display:grid; place-items:center;
+  height:18px;
+}
+.cell{
+  width:18px; height:18px; border-radius:4px; position:relative;
+  background:rgba(255,255,255,.028);
+  transition:background .3s, box-shadow .3s, transform .25s, opacity .3s;
+}
+.cell.star{
+  background:linear-gradient(140deg,#d9fca8,#b6f24a);
+  box-shadow:0 0 14px -6px rgba(182,242,74,.95);
+}
+.cell.spine{ background:linear-gradient(140deg,#a7ecff,#4dd4ff); box-shadow:0 0 14px -6px rgba(77,212,255,.95); }
+.cell.mid{ background:linear-gradient(140deg,#c7b6ff,#8b6bff); box-shadow:0 0 16px -6px rgba(139,107,255,.95); }
+.cell.rel{ background:rgba(255,255,255,.05); }
+.cell.ghost{ outline:1px dashed rgba(77,212,255,.55); outline-offset:1px; }
+.cell:hover{ transform:scale(1.18); z-index:2; }
+.cell.pulse{ animation:cellPulse .5s cubic-bezier(.22,1,.36,1) both; }
+@keyframes cellPulse{ from{ transform:scale(.6); opacity:.2; } to{ transform:none; opacity:1; } }
+.cell .dot::after{
+  content:"·"; position:absolute; inset:0; display:grid; place-items:center;
+  font-family:var(--mono); font-size:13px; color:#31414f;
+}
+.cell.showws.spacer::after{
+  content:"·"; position:absolute; inset:0; display:grid; place-items:center;
+  font-family:var(--mono); font-size:12px; color:rgba(120,160,180,.5);
+}
+.ruler{ display:grid; grid-template-columns:34px repeat(var(--cols, 15), 18px); gap:2px; margin-bottom:4px; width:max-content; }
+.ruler span{ font-family:var(--mono); font-size:9px; color:#3f5866; text-align:center; height:12px; line-height:12px; }
+.ruler span.mark{ color:#7dd3fc; }
+
+.ctl{ display:flex; flex-wrap:wrap; gap:14px; align-items:center; margin-top:14px; }
+.ctl .glab2{ font-family:var(--mono); font-size:10px; letter-spacing:.14em; text-transform:uppercase; color:var(--dim); }
+.sw{
+  display:inline-flex; align-items:center; gap:8px; cursor:pointer; user-select:none;
+  font-family:var(--mono); font-size:11.5px; color:#9fb3c0;
+  padding:6px 10px; border-radius:8px; background:rgba(255,255,255,.03); border:1px solid rgba(255,255,255,.08);
+  transition:.28s;
+}
+.sw:hover{ border-color:rgba(77,212,255,.4); color:#dff6ff; }
+.sw .knob{ width:26px; height:14px; border-radius:99px; background:rgba(255,255,255,.12); position:relative; transition:.28s; }
+.sw .knob::after{
+  content:""; position:absolute; top:2px; left:2px; width:10px; height:10px; border-radius:50%;
+  background:#8fa3b0; transition:.28s;
+}
+.sw.on{ color:#e8fbff; border-color:rgba(77,212,255,.45); background:rgba(77,212,255,.08); }
+.sw.on .knob{ background:rgba(77,212,255,.35); }
+.sw.on .knob::after{ left:14px; background:#b6f24a; box-shadow:0 0 10px #b6f24a; }
+
+.nsizes{ display:flex; flex-wrap:wrap; gap:6px; margin-top:12px; }
+.nbtn{
+  font-family:var(--mono); font-size:12px; width:34px; height:30px; border-radius:8px; cursor:pointer;
+  color:#a7bdc9; background:rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.08); transition:.24s;
+}
+.nbtn:hover{ color:#fff; border-color:rgba(77,212,255,.45); }
+.nbtn.on{ color:#04181f; background:linear-gradient(140deg,#a7ecff,#b6f24a); border-color:transparent; font-weight:700; box-shadow:0 0 22px -10px rgba(77,212,255,1); }
+.ninput{
+  font-family:var(--mono); font-size:12.5px; width:72px; padding:6px 9px; border-radius:8px;
+  color:#eaf6ff; background:#0a141c; border:1px solid rgba(255,255,255,.14); outline:none;
+}
+.ninput:focus{ border-color:rgba(77,212,255,.5); box-shadow:0 0 22px -12px rgba(77,212,255,1); }
+
+.statrow{ display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; }
+.statrow .stat{ padding:10px 12px; }
+.statrow .stat .val{ font-size:14px; }
+
+.legend2{ display:flex; flex-wrap:wrap; gap:14px; margin-top:14px; font-family:var(--mono); font-size:10.5px; color:#7e93a0; letter-spacing:.03em; }
+.legend2 span{ display:inline-flex; align-items:center; gap:6px; }
+.legend2 i{ width:11px; height:11px; border-radius:3px; display:inline-block; }
+.legend2 i.l-star{ background:linear-gradient(140deg,#d9fca8,#b6f24a); }
+.legend2 i.l-spine{ background:linear-gradient(140deg,#a7ecff,#4dd4ff); }
+.legend2 i.l-mid{ background:linear-gradient(140deg,#c7b6ff,#8b6bff); }
+.legend2 i.l-non{ background:rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.14); }
+
+pre.raw{
+  font-family:var(--mono); font-size:12.5px; line-height:1.5; margin:0; padding:14px 16px;
+  border-radius:12px; background:rgba(4,10,16,.85); border:1px solid rgba(255,255,255,.07);
+  color:#cfe6f0; overflow-x:auto; white-space:pre;
+}
+pre.raw mark{ background:rgba(182,242,74,.16); color:#e8ffd0; border-radius:3px; }
+pre.raw .sp{ color:#2f4a58; }
+
+.gallery{ display:grid; grid-template-columns:repeat(auto-fill,minmax(150px,1fr)); gap:12px; margin-top:16px; }
+.gcard{
+  padding:12px; border-radius:12px; background:rgba(255,255,255,.028); border:1px solid rgba(255,255,255,.07);
+  transition:.3s; cursor:pointer;
+}
+.gcard:hover{ border-color:rgba(77,212,255,.4); transform:translateY(-2px); background:rgba(77,212,255,.06); }
+.gcard .gh{ display:flex; align-items:baseline; justify-content:space-between; gap:8px; margin-bottom:8px; }
+.gcard .gn{ font-family:var(--mono); font-size:12px; color:#dff6ff; }
+.gcard .gt{ font-family:var(--mono); font-size:9.5px; letter-spacing:.08em; text-transform:uppercase; color:#7e93a0; }
+.gcard .gt.ok{ color:#b6f24a; } .gcard .gt.warn{ color:#ffb066; } .gcard .gt.bad{ color:#ff9e9e; }
+.gmini{ display:grid; gap:1px; }
+.gmini i{ display:block; border-radius:1px; background:rgba(255,255,255,.05); }
+.gmini i.s{ background:rgba(182,242,74,.85); }
+
+.condgrid{ display:grid; gap:6px; margin-top:10px; }
+.condrow{
+  display:grid; grid-template-columns:52px repeat(4, minmax(0,1fr)) 70px; gap:6px; align-items:center;
+  font-family:var(--mono); font-size:11px; color:#8fa7b0;
+}
+.condrow.head{ color:#5f7784; font-size:9.5px; letter-spacing:.1em; text-transform:uppercase; }
+.condrow .rv{
+  padding:5px 6px; border-radius:6px; text-align:center;
+  background:rgba(255,255,255,.03); border:1px solid rgba(255,255,255,.06);
+}
+.condrow .rv.t{ color:#04181f; background:linear-gradient(140deg,#d9fca8,#b6f24a); border-color:transparent; font-weight:700; }
+.condrow .rv.f{ color:#455c69; }
+.condrow .res{ text-align:right; color:#a9c3cf; }
+.condrow .res .all{ color:#b6f24a; }
+@media (max-width:640px){
+  .condrow{ grid-template-columns:40px repeat(4, minmax(0,1fr)); font-size:10px; }
+  .condrow .res{ display:none; }
+}
+
+/* ================= EKD (completed signature) components ================= */
+.cell.zone-e{ background:linear-gradient(140deg,#d9fca8,#b6f24a); box-shadow:0 0 14px -6px rgba(182,242,74,.95); }
+.cell.zone-k{ background:linear-gradient(140deg,#a7ecff,#4dd4ff); box-shadow:0 0 14px -6px rgba(77,212,255,.95); }
+.cell.zone-d{ background:linear-gradient(140deg,#c7b6ff,#8b6bff); box-shadow:0 0 14px -6px rgba(139,107,255,.95); }
+.cell.colgap{ background:rgba(255,255,255,.055); }
+.cell.dead{ background:rgba(255,90,90,.14); outline:1px dashed rgba(255,120,120,.7); outline-offset:1px; }
+.cell.diag{ box-shadow:0 0 0 2px rgba(255,255,255,.75) inset, 0 0 18px -6px rgba(255,255,255,.8); }
+.cell.dim{ opacity:.32; }
+
+.zonebar{
+  display:grid; grid-template-columns:34px 1fr; gap:2px; margin-bottom:6px; width:max-content;
+}
+.zbl{
+  display:grid; place-items:center; height:20px; border-radius:6px;
+  font-family:var(--mono); font-size:10.5px; letter-spacing:.1em; text-transform:uppercase;
+}
+.zbl.e{ background:rgba(182,242,74,.14); border:1px solid rgba(182,242,74,.4); color:#d9fca8; }
+.zbl.k{ background:rgba(77,212,255,.14); border:1px solid rgba(77,212,255,.4); color:#a7ecff; }
+.zbl.d{ background:rgba(139,107,255,.16); border:1px solid rgba(139,107,255,.45); color:#c7b6ff; }
+.zbl.gap{ background:rgba(255,255,255,.04); border:1px dashed rgba(255,255,255,.16); color:#6f8695; }
+.zbl.dead{ background:rgba(255,90,90,.12); border:1px dashed rgba(255,120,120,.6); color:#ffb3b3; }
+
+.legend3{ display:flex; flex-wrap:wrap; gap:14px; margin-top:14px; font-family:var(--mono); font-size:10.5px; color:#7e93a0; }
+.legend3 span{ display:inline-flex; align-items:center; gap:6px; }
+.legend3 i{ width:11px; height:11px; border-radius:3px; display:inline-block; }
+.legend3 i.e{ background:linear-gradient(140deg,#d9fca8,#b6f24a); }
+.legend3 i.k{ background:linear-gradient(140deg,#a7ecff,#4dd4ff); }
+.legend3 i.d{ background:linear-gradient(140deg,#c7b6ff,#8b6bff); }
+.legend3 i.g{ background:rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.18); }
+.legend3 i.x{ background:rgba(255,90,90,.18); border:1px dashed rgba(255,120,120,.7); }
+
+.nameplate{
+  display:grid; gap:4px; padding:12px 14px; border-radius:12px; margin-top:14px;
+  background:linear-gradient(120deg, rgba(77,212,255,.08), rgba(182,242,74,.05));
+  border:1px solid rgba(77,212,255,.22);
+  font-family:var(--mono); font-size:12px; color:#cfe6f0;
+}
+.nameplate b{ color:#eaffd6; font-weight:600; }
+
+.probe{
+  border-radius:14px; padding:14px; margin-top:12px;
+  background:rgba(255,255,255,.022); border:1px dashed rgba(255,255,255,.14);
+}
+.probe .ph{
+  display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:8px;
+  font-family:var(--mono); font-size:10.5px; letter-spacing:.12em; text-transform:uppercase; color:#8fa2ae;
+}
+.probe .ph b{ color:#ffb066; letter-spacing:.06em; }
+.probe pre{ margin:0; font-size:10.5px; line-height:1.4; color:#bfe4d0; overflow-x:auto; }
+.probe.bad pre{ color:#ffd0d0; }
+
+.rowsplit{ display:grid; grid-template-columns:1fr auto; gap:12px; align-items:center; }
+.rowsplit .txt{ font-size:13.4px; color:var(--muted); }
+
+/* ---------- narrow-viewport nav: keep every link reachable ---------- */
+@media (max-width:760px){
+  .nav-in{ gap:10px; }
+  .brand{ flex:0 0 auto; min-width:0; overflow:visible; font-size:13px; }
+  .brand .sub{ display:none; }
+  .nav-links{ flex:1 1 auto; min-width:0; overflow-x:auto; scrollbar-width:none; -webkit-overflow-scrolling:touch; padding-bottom:2px; }
+  .nav-links::-webkit-scrollbar{ display:none; height:0; }
+  .nav-links a{ white-space:nowrap; flex:0 0 auto; }
+}
+
+/* ================= The Last Signal — console components ================= */
+.hud{
+  position:relative; border-radius:16px; padding:calc(20px * var(--sp));
+  background:linear-gradient(160deg, rgba(12,20,32,.9), rgba(6,10,17,.95));
+  border:1px solid rgba(77,212,255,.18);
+  box-shadow:0 1px 0 rgba(255,255,255,.06) inset, 0 50px 90px -60px #000, 0 0 80px -50px rgba(77,212,255,.8);
+}
+.hud::before, .hud::after{
+  content:""; position:absolute; width:14px; height:14px; border:1px solid rgba(77,212,255,.5); pointer-events:none;
+}
+.hud::before{ top:9px; left:9px; border-right:0; border-bottom:0; border-radius:4px 0 0 0; }
+.hud::after{ bottom:9px; right:9px; border-left:0; border-top:0; border-radius:0 0 4px 0; }
+
+.st{
+  display:inline-flex; align-items:center; gap:7px; padding:4px 11px; border-radius:99px;
+  font-family:var(--mono); font-size:11px; letter-spacing:.1em; text-transform:uppercase; border:1px solid;
+}
+.st::before{ content:""; width:6px; height:6px; border-radius:50%; background:currentColor; box-shadow:0 0 10px currentColor; }
+.st.g{ color:#9df3d3; border-color:rgba(110,231,183,.38); background:rgba(110,231,183,.08); }
+.st.n{ color:#ffb3b3; border-color:rgba(255,120,120,.42); background:rgba(255,90,90,.08); }
+.st.a{ color:#ffd08a; border-color:rgba(255,176,102,.4); background:rgba(255,176,102,.08); }
+.st.b{ color:#a7ecff; border-color:rgba(77,212,255,.4); background:rgba(77,212,255,.08); }
+
+.phases{ display:grid; gap:8px; }
+.phase{
+  display:grid; grid-template-columns:auto 1fr; gap:13px; align-items:start;
+  padding:12px 14px; border-radius:12px; background:rgba(255,255,255,.028); border:1px solid var(--line);
+  transition:.3s;
+}
+.phase:hover{ border-color:rgba(77,212,255,.32); background:rgba(77,212,255,.05); }
+.phase .pn{
+  font-family:var(--mono); font-size:11px; color:#0a1016; background:linear-gradient(140deg,#d9fca8,#b6f24a);
+  border-radius:7px; padding:2px 8px; font-weight:600;
+}
+.phase .pt{ font-size:14px; color:#dfe6f8; }
+.phase .pd{ font-size:13.2px; color:var(--muted); margin-top:3px; }
+
+.sig{ display:grid; gap:3px; width:max-content; }
+.sig .rl{ font-family:var(--mono); font-size:9.5px; color:#4a6270; display:grid; place-items:center; height:22px; }
+.sig .rh{ font-family:var(--mono); font-size:9.5px; color:#4a6270; display:grid; place-items:center; height:13px; }
+.sig .c{
+  width:22px; height:22px; border-radius:4px; background:rgba(255,255,255,.03); position:relative;
+  transition:background .3s, box-shadow .3s, transform .22s, opacity .3s;
+}
+.sig .c.on{
+  background:linear-gradient(140deg,#d9fca8,#b6f24a);
+  box-shadow:0 0 13px -5px rgba(182,242,74,.95);
+}
+.sig .c.on.cond-a{ background:linear-gradient(140deg,#d9fca8,#b6f24a); box-shadow:0 0 13px -5px rgba(182,242,74,.95); }
+.sig .c.on.cond-b{ background:linear-gradient(140deg,#a7ecff,#4dd4ff); box-shadow:0 0 13px -5px rgba(77,212,255,.95); }
+.sig .c.on.cond-c{ background:linear-gradient(140deg,#ffd9a8,#ffb066); box-shadow:0 0 13px -5px rgba(255,176,102,.95); }
+.sig .c.on.cond-d{ background:linear-gradient(140deg,#dcc7ff,#9d7bff); box-shadow:0 0 13px -5px rgba(157,123,255,.95); }
+.sig .c:hover{ transform:scale(1.14); z-index:2; }
+.sig .c.showws::after{
+  content:"·"; position:absolute; inset:0; display:grid; place-items:center;
+  font-family:var(--mono); font-size:12px; color:rgba(120,160,180,.5);
+}
+.sig .c.dead{ outline:1px dashed rgba(255,120,120,.5); outline-offset:1px; }
+.sig .c.pulse{ animation:cellPulse .45s cubic-bezier(.22,1,.36,1) both; }
+
+.dlegend{ display:flex; flex-wrap:wrap; gap:12px; margin-top:12px; font-family:var(--mono); font-size:10.5px; color:#7e93a0; }
+.dlegend span{ display:inline-flex; align-items:center; gap:6px; }
+.dlegend i{ width:11px; height:11px; border-radius:3px; display:inline-block; }
+.dlegend i.a{ background:linear-gradient(140deg,#d9fca8,#b6f24a); }
+.dlegend i.b{ background:linear-gradient(140deg,#a7ecff,#4dd4ff); }
+.dlegend i.c{ background:linear-gradient(140deg,#ffd9a8,#ffb066); }
+.dlegend i.d{ background:linear-gradient(140deg,#dcc7ff,#9d7bff); }
+.dlegend i.w{ background:rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.18); }
+
+.con{
+  font-family:var(--mono); font-size:11.5px; line-height:1.62; white-space:pre; overflow:auto;
+  background:linear-gradient(180deg,#060a11,#04070c); border:1px solid rgba(255,255,255,.08);
+  border-radius:12px; padding:14px 16px; color:#cfd8ee; max-width:100%;
+}
+.con .pm{ color:#7f93a0; }
+.con .in{ color:#ffd08a; }
+.con .er{ color:#ff9f9f; }
+.con .ok{ color:#9df3d3; }
+.con .no{ color:#ffb3b3; }
+.con .hd{ color:#a7ecff; }
+.con .art{ color:#c9f7a8; }
+.con .dim{ color:#55637a; }
+.con .cur{ display:inline-block; width:7px; background:#b6f24a; animation:blink 1s steps(1) infinite; }
+@keyframes blink{ 50%{ opacity:0; } }
+
+.digits{ display:flex; align-items:center; gap:9px; flex-wrap:wrap; }
+.dg{
+  width:40px; height:46px; border-radius:10px; display:grid; place-items:center;
+  font-family:var(--mono); font-size:19px; color:#eaf0ff;
+  background:rgba(77,212,255,.09); border:1px solid rgba(77,212,255,.32);
+}
+.dg.hot{ border-color:rgba(182,242,74,.5); background:rgba(182,242,74,.1); box-shadow:0 0 22px -12px rgba(182,242,74,.9); }
+.dop{ font-family:var(--mono); color:#5b6a80; font-size:15px; }
+.dsum{
+  font-family:var(--mono); font-size:22px; color:#d9fca8; padding:0 12px; border-left:1px solid rgba(255,255,255,.12);
+  text-shadow:0 0 26px rgba(182,242,74,.5);
+}
+
+.kvs{ display:grid; gap:2px; border-radius:11px; overflow:hidden; }
+.kvs .r{ display:grid; grid-template-columns:160px 1fr; gap:12px; padding:8px 12px; background:rgba(255,255,255,.028); font-family:var(--mono); font-size:12px; }
+.kvs .r .k{ color:#6f829a; }
+.kvs .r .v{ color:#dfe6f8; }
+.kvs .r.rev{ background:rgba(255,255,255,.02); }
+.kvs .r.rev .v{ color:#9df3d3; }
+@media (max-width:520px){ .kvs .r{ grid-template-columns:1fr; gap:2px; } }
+
+.lockband{
+  border-radius:12px; padding:12px 15px; font-family:var(--mono); font-size:11.5px; line-height:1.6;
+  background:rgba(255,90,90,.075); border:1px solid rgba(255,120,120,.34); color:#ffc9c9;
+}
+.lockband.g{ background:rgba(110,231,183,.07); border-color:rgba(110,231,183,.3); color:#c4f5e2; }
+
+.lab2{ display:grid; grid-template-columns:1.1fr .9fr; gap:calc(18px * var(--sp)); align-items:start; }
+@media (max-width:980px){ .lab2{ grid-template-columns:1fr; } }
+
+.rbtns{ display:flex; gap:6px; flex-wrap:wrap; }
+.rbtn{
+  font-family:var(--mono); font-size:12px; cursor:pointer; padding:6px 12px; border-radius:8px;
+  color:#9fb3c0; background:rgba(255,255,255,.03); border:1px solid rgba(255,255,255,.1); transition:.24s;
+}
+.rbtn:hover{ color:#e8fbff; border-color:rgba(77,212,255,.4); }
+.rbtn.on{ color:#062515; background:linear-gradient(140deg,#d9fca8,#b6f24a); border-color:transparent; box-shadow:0 0 26px -12px rgba(182,242,74,1); font-weight:600; }
+
+.codeinput{
+  font-family:var(--mono); font-size:15px; letter-spacing:.14em; color:#eaf0ff; width:110px;
+  padding:8px 10px; border-radius:9px; background:rgba(255,255,255,.04);
+  border:1px solid rgba(255,255,255,.14); outline:none; transition:.24s;
+}
+.codeinput:focus{ border-color:rgba(77,212,255,.6); box-shadow:0 0 30px -14px rgba(77,212,255,1); }
+.codeinput.bad{ border-color:rgba(255,120,120,.7); box-shadow:0 0 30px -14px rgba(255,90,90,1); }
+
+.fieldrow{ display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-top:10px; }
+.fieldrow .lab{ font-family:var(--mono); font-size:10.5px; letter-spacing:.13em; text-transform:uppercase; color:var(--dim); }
+
+.crit{ display:grid; gap:10px; }
+.crit .ci{ display:grid; grid-template-columns:auto 1fr; gap:11px; padding:11px 13px; border-radius:11px; background:rgba(255,255,255,.026); border:1px solid var(--line); }
+.crit .ci .n{ font-family:var(--mono); font-size:10.5px; color:#0a1016; background:#7dd3fc; border-radius:6px; padding:1px 7px; height:18px; }
+.crit .ci.pass .n{ background:linear-gradient(140deg,#d9fca8,#b6f24a); }
+.crit .ci .t{ font-size:13.4px; color:#cfd8ea; }
+
+@media (max-width:760px){
+  .nav-in{ gap:10px; }
+  .brand{ flex:0 0 auto; min-width:0; overflow:visible; font-size:13px; }
+  .brand .sub{ display:none; }
+  .nav-links{ flex:1 1 auto; min-width:0; overflow-x:auto; scrollbar-width:none; -webkit-overflow-scrolling:touch; padding-bottom:2px; }
+  .nav-links::-webkit-scrollbar{ display:none; height:0; }
+  .nav-links a{ white-space:nowrap; flex:0 0 auto; }
+}
+
+/* kicker wraps cleanly on narrow screens */
+.kicker{ align-items:flex-start; }
+@media (max-width:520px){ .kicker{ font-size:10px; letter-spacing:.14em; line-height:1.55; } }
+</style>
+</head>
+<body>
+
+<div class="bg-layer" aria-hidden="true">
+  <div class="orb orb-a"></div>
+  <div class="orb orb-b"></div>
+  <div class="orb orb-c"></div>
+  <div class="grid-lines"></div>
+  <div class="noise"></div>
+  <div class="vignette"></div>
+</div>
+
+<header class="nav">
+  <div class="nav-in">
+    <div class="brand"><span class="dot"></span>The Last Signal<span class="sub">/ projects · console</span></div>
+    <nav class="nav-links">
+      <a href="#objective">Objective</a>
+      <a href="#problem">Phases</a>
+      <a href="#logic">Logic</a>
+      <a href="#concepts">Concepts</a>
+      <a href="#experiment">Sigil lab</a>
+      <a href="#walkthrough">Trace</a>
+      <a href="#edges">Edge cases</a>
+      <a href="#source">Source</a>
+    </nav>
+  </div>
+  <div class="progress" id="progress"></div>
+</header>
+
+<main>
+
+  <!-- ================= HERO ================= -->
+  <section class="hero" id="top">
+    <div class="wrap">
+      <div class="hero-grid">
+        <div class="hero-copy">
+          <div class="kicker"><i></i>Orbital station · containment console</div>
+          <h1>The Last <span class="file">Signal</span></h1>
+          <p class="sub">Four phases in one program: validate the operator with loops, extract a checksum from the access code's digits, decide authorisation from that sum, and render a hollow diamond sigil — <b>only</b> when the sum divides by three.</p>
+          <div class="chips">
+            <span class="chip">R = 1 … 4</span>
+            <span class="chip">checksum by % 10 and / 10</span>
+            <span class="chip">4R stars · (2R+1)² cells</span>
+            <span class="chip">ACCESS GRANTED iff sum % 3 == 0</span>
+          </div>
+          <div class="cta">
+            <a class="btn btn-primary" href="#experiment">Open the console
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M3 8h9M8.5 4l4 4-4 4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </a>
+            <a class="btn btn-ghost" href="#source">Read the original source</a>
+          </div>
+          <div class="scrollcue"><span class="bar"></span>scroll to dissect</div>
+        </div>
+
+        <div class="hero-vis">
+          <div class="orbit" aria-hidden="true"></div>
+          <div class="verdict-card" id="verdictCard">
+            <div class="vc-head">
+              <span style="text-transform:none;font-size:11.5px">radius 3 → 7 × 7 containment sigil</span>
+              <span style="color:#b6f24a">12 stars</span>
+            </div>
+            <div id="heroSig" style="display:grid; place-items:center; padding:6px 0 10px"></div>
+            <div class="dlegend">
+              <span><i class="a"></i>r + c = R+2</span>
+              <span><i class="b"></i>r − c = R</span>
+              <span><i class="c"></i>c − r = R</span>
+              <span><i class="d"></i>r + c = 3R+2</span>
+            </div>
+            <div style="margin-top:12px;padding-top:11px;border-top:1px solid rgba(255,255,255,.07);font-family:var(--mono);font-size:11.5px;color:#8fa7b0;line-height:1.75" id="heroStats">
+              code 123 → 1 + 2 + 3 = 6 → STABLE → GRANTED
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= 01 OBJECTIVE ================= -->
+  <section class="section" id="objective">
+    <div class="wrap">
+      <div class="head reveal">
+        <div class="eyebrow"><b>01</b> Program objective</div>
+        <h2>What this console is actually doing</h2>
+        <p class="lead">A station has lost contact with Earth. The program is the only interface left: it takes a call sign, a radius and a three-digit code, derives a checksum from the code's digits, turns that number into a telemetry status and an authorisation decision, and draws the containment sigil only if the operator passes.</p>
+      </div>
+
+      <div class="grid g3">
+        <div class="card reveal" style="--d:0ms">
+          <h3><span class="tag">purpose</span></h3>
+          <p>Authenticate an operator, then act on the result. The console reads three values, computes one derived number (<code class="inl">checkSum</code>), and uses it twice: once for telemetry (<code class="inl">% 2</code>) and once for authorisation (<code class="inl">% 3</code>).</p>
+          <p>Everything after that is conditional. Granted, the sigil is rendered and the report claims containment. Denied, no sigil exists and the report must admit lockdown.</p>
+        </div>
+
+        <div class="card reveal" style="--d:120ms">
+          <h3><span class="tag">learning</span></h3>
+          <ul style="font-size:13.8px">
+            <li><code class="inl">while</code> validation that re-prompts instead of continuing;</li>
+            <li>digit extraction with <code class="inl">% 10</code> and <code class="inl">/ 10</code>;</li>
+            <li>two static helpers — a computation and a renderer;</li>
+            <li>a shape described by four <em>coordinate equations</em>, not by rows;</li>
+            <li>one grid, one row loop, one column loop, no half-printing;</li>
+            <li>reporting that must match the branch that actually ran.</li>
+          </ul>
+        </div>
+
+        <div class="card reveal" style="--d:240ms">
+          <h3><span class="tag">behaviour</span></h3>
+          <p>Three prompts, each with validation. Invalid radius (outside 1–4) or invalid code (outside 100–999) prints a rejection and asks again — forever, until a legal value arrives.</p>
+          <p>Then a single decision point: <code class="inl">checkSum % 3</code>. One branch prints the diamond and the restored message; the other prints a denial and the lockdown message.</p>
+          <p>Output is deterministic for a given set of inputs, because nothing else is read.</p>
+        </div>
+      </div>
+
+      <div class="card reveal" style="margin-top:calc(18px * var(--sp))">
+        <h3 style="margin-bottom:12px"><span class="tag">phase map</span> <span style="font-weight:500;color:var(--muted);font-size:15px">four phases, two methods, one decision</span></h3>
+        <div class="phases">
+          <div class="phase">
+            <span class="pn">01</span>
+            <div><div class="pt">Initialize the console</div><div class="pd">Call sign via <code class="inl">nextLine()</code>; radius and code via <code class="inl">nextInt()</code>, each wrapped in a <code class="inl">while</code> that rejects and re-prompts.</div></div>
+          </div>
+          <div class="phase">
+            <span class="pn">02</span>
+            <div><div class="pt">Crack the access code</div><div class="pd"><code class="inl">checkSum(code)</code> adds the digits mathematically. The sum sets telemetry (even → STABLE) and authorisation (<code class="inl">% 3 == 0</code> → GRANTED).</div></div>
+          </div>
+          <div class="phase">
+            <span class="pn">03</span>
+            <div><div class="pt">Render the containment sigil</div><div class="pd"><code class="inl">DiamondRender(R)</code> walks a (2R+1) × (2R+1) grid once and prints a star where any of four diagonal equations holds. Denied → no sigil at all.</div></div>
+          </div>
+          <div class="phase">
+            <span class="pn">04</span>
+            <div><div class="pt">Shutdown report</div><div class="pd">Call sign, checksum, telemetry status, and a final line chosen by the same <code class="inl">% 3</code> test — restored or maintained, never both.</div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= 02 PROBLEM STATEMENT ================= -->
+  <section class="section" id="problem">
+    <div class="wrap">
+      <div class="head reveal">
+        <div class="eyebrow"><b>02</b> Problem statement</div>
+        <h2>The task, stated without the code</h2>
+        <p class="lead">Read three validated values. Sum the digits of the access code. Report telemetry from the parity of that sum, authorise on divisibility by three, draw a hollow diamond of radius R if and only if authorisation succeeds, then print a report that tells the truth about what happened.</p>
+      </div>
+
+      <div class="grid g2" style="align-items:start">
+        <div class="card reveal">
+          <h3>Rules, and where each one lives</h3>
+          <div class="tablewrap tight" style="margin-top:8px">
+            <table>
+              <thead><tr><th>rule</th><th>condition</th><th>effect</th></tr></thead>
+              <tbody>
+                <tr><td>radius is legal</td><td class="mono">1 ≤ R ≤ 4</td><td>otherwise re-prompt</td></tr>
+                <tr><td>code is legal</td><td class="mono">100 ≤ code ≤ 999</td><td>otherwise re-prompt</td></tr>
+                <tr><td>checksum</td><td class="mono">Σ digits of code</td><td>computes 1 … 27</td></tr>
+                <tr><td>telemetry</td><td class="mono">sum % 2 == 0</td><td>STABLE / DRIFT DETECTED</td></tr>
+                <tr><td>authorisation</td><td class="mono">sum % 3 == 0</td><td>GRANTED / DENIED</td></tr>
+                <tr><td>sigil</td><td class="mono">(2R+1)² grid</td><td>only when granted</td></tr>
+                <tr><td>final line</td><td class="mono">same % 3 test</td><td>restored / maintained</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <p style="margin-top:14px"><strong>Constraints that shape the code.</strong> One row loop and one column loop for the sigil. Star positions derived mathematically, with no per-row lists and no separate upper/lower halves. The diamond stays hollow for R = 1, 2, 3 and 4. A denied run must not print a sigil and must not claim restoration.</p>
+          <div class="note warn"><b>Two independent tests on one number.</b> Parity decides telemetry, divisibility by three decides access. A code can therefore be <code class="inl">STABLE</code> and still be denied — <code class="inl">583</code> sums to 16, which is even but not a multiple of 3. The two outputs are not linked.</div>
+        </div>
+
+        <div class="card reveal" style="--d:120ms">
+          <h3>The sigil, for R = 2</h3>
+          <div class="stream" style="margin-top:8px;font-size:12px;white-space:pre-wrap">r=1  <span style="color:#d9fca8">    *     </span>
+r=2  <span style="color:#d9fca8">  *   *   </span>
+r=3  <span style="color:#d9fca8">*       * </span>
+r=4  <span style="color:#d9fca8">  *   *   </span>
+r=5  <span style="color:#d9fca8">    *     </span></div>
+          <p style="margin-top:14px">A 5 × 5 grid, every cell two characters wide. Each row is exactly 10 characters, so the shape closes: a hollow diamond with 8 stars around an empty interior.</p>
+          <div class="tablewrap tight" style="margin-top:8px">
+            <table>
+              <thead><tr><th>equation</th><th>edge it draws</th></tr></thead>
+              <tbody>
+                <tr><td class="mono">r + c == R + 2</td><td>upper-left, top vertex down to left vertex</td></tr>
+                <tr><td class="mono">c − r == R</td><td>upper-right, top vertex down to right vertex</td></tr>
+                <tr><td class="mono">r − c == R</td><td>lower-left, left vertex down to bottom vertex</td></tr>
+                <tr><td class="mono">r + c == 3R + 2</td><td>lower-right, right vertex down to bottom vertex</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <p class="src-note">The four equations fire in pairs at the four vertices — the top cell satisfies both upper edges, the left cell both left edges — which is why the corners are single stars and not doubled.</p>
+        </div>
+      </div>
+
+      <div class="grid g3" style="margin-top:calc(18px * var(--sp))">
+        <div class="card reveal">
+          <h3 style="font-size:15px">Grid size by radius</h3>
+          <div class="meter" style="margin-top:8px">
+            <div class="m"><div class="k">R = 1</div><div class="v">3 × 3</div></div>
+            <div class="m"><div class="k">R = 2</div><div class="v">5 × 5</div></div>
+            <div class="m"><div class="k">R = 3</div><div class="v">7 × 7</div></div>
+            <div class="m"><div class="k">R = 4</div><div class="v">9 × 9</div></div>
+          </div>
+          <p style="font-size:13.4px;margin-top:12px"><code class="inl">gridSize = 2R + 1</code>, used as the bound of both loops. The biggest sigil is 81 cells; the smallest is 9.</p>
+        </div>
+        <div class="card reveal" style="--d:100ms">
+          <h3 style="font-size:15px">What is printed</h3>
+          <div class="stream" style="margin-top:8px;font-size:11.5px;white-space:pre-wrap">1  prompt  call-sign
+2  prompt  radius   (+ rejections)
+3  prompt  code     (+ rejections)
+4  ACCESS GRANTED / ACCESS DENIED
+5  sigil rows       (granted only)
+6  ===Shutdown Report====
+7  four report lines
+8  final verdict line</div>
+          <p style="font-size:13.4px;margin-top:12px">Steps 4–5 are the branch. Steps 6–8 always run, but their content depends on the same test.</p>
+        </div>
+        <div class="card reveal" style="--d:200ms">
+          <h3 style="font-size:15px">Acceptance checklist</h3>
+          <div class="crit" style="margin-top:8px">
+            <div class="ci pass"><span class="n">✓</span><span class="t">Invalid radius rejected, re-prompted</span></div>
+            <div class="ci pass"><span class="n">✓</span><span class="t">Invalid code rejected, re-prompted</span></div>
+            <div class="ci pass"><span class="n">✓</span><span class="t">Checksum from digits, not the code</span></div>
+            <div class="ci pass"><span class="n">✓</span><span class="t">Hollow diamond for every legal R</span></div>
+            <div class="ci pass"><span class="n">✓</span><span class="t">No sigil when denied</span></div>
+            <div class="ci pass"><span class="n">✓</span><span class="t">Final line matches the branch</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= 03 CORE LOGIC ================= -->
+  <section class="section" id="logic">
+    <div class="wrap">
+      <div class="head reveal">
+        <div class="eyebrow"><b>03</b> Core logic &amp; approach</div>
+        <h2>Three decisions, one number, four equations</h2>
+        <p class="lead">The console has a linear spine — read, validate, compute, decide, render, report — and one place where the work becomes geometry: four arithmetic conditions standing in for the four edges of a diamond.</p>
+      </div>
+
+      <div class="grid g2" style="align-items:start">
+        <div class="reveal">
+          <div class="flow">
+            <div class="fnode">
+              <div class="cond">0 · Scanner</div>
+              <div class="act">One <code class="inl">Scanner</code> on <code class="inl">System.in</code>, opened in <code class="inl">main</code> and closed at the end.</div>
+            </div>
+            <div class="arrow">↓</div>
+            <div class="fnode">
+              <div class="cond">1 · call sign</div>
+              <div class="act"><code class="inl">nextLine()</code> — the whole line, spaces included, no validation.</div>
+            </div>
+            <div class="arrow">↓ while invalid</div>
+            <div class="fnode key">
+              <div class="cond">2 · R ∈ [1, 4]</div>
+              <div class="act"><code class="inl">nextInt()</code>, then <code class="inl">while (R &lt; 1 || R &gt; 4)</code> prints the rejection and reads again. The loop cannot be escaped with a bad value.</div>
+            </div>
+            <div class="arrow">↓ while invalid</div>
+            <div class="fnode key">
+              <div class="cond">3 · code ∈ [100, 999]</div>
+              <div class="act">Same pattern for the access code. Three digits are guaranteed by the range, not by the digits themselves.</div>
+            </div>
+            <div class="arrow">↓</div>
+            <div class="fnode">
+              <div class="cond">4 · checkSum(code)</div>
+              <div class="act"><code class="inl">% 10</code> peels the last digit, <code class="inl">/ 10</code> drops it, loop until zero. Right to left — the order does not matter for a sum.</div>
+            </div>
+            <div class="arrow">↓</div>
+            <div class="fnode">
+              <div class="cond">5 · two tests</div>
+              <div class="act"><code class="inl">% 2</code> → telemetry · <code class="inl">% 3</code> → authorisation. Independent of each other.</div>
+            </div>
+            <div class="arrow">↓ if granted</div>
+            <div class="fnode">
+              <div class="cond">6 · DiamondRender(R)</div>
+              <div class="act">One grid, two loops, four conditions. Nothing is printed for a denied operator.</div>
+            </div>
+            <div class="arrow">↓ always</div>
+            <div class="fnode">
+              <div class="cond">7 · report</div>
+              <div class="act">Call sign, checksum, telemetry, then the verdict line chosen by the same <code class="inl">% 3</code> test.</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="reveal" style="--d:120ms">
+          <h3 style="margin-bottom:10px">The checksum, digit by digit</h3>
+          <div class="code">
+            <div class="cb"><span class="fname"><i></i>checkSum(int accessCode)</span><span class="mono" style="font-size:11px;color:#5c6880">mutates a copy</span></div>
+            <pre><span class="tok-k">int</span> chkSum = 0;
+<span class="tok-k">while</span> (accessCode &gt; 0) {
+    chkSum += (accessCode % 10);   <span class="tok-c">// last digit</span>
+    accessCode /= 10;              <span class="tok-c">// drop it</span>
+}
+<span class="tok-k">return</span> chkSum;</pre>
+          </div>
+          <div class="tablewrap tight" style="margin-top:12px">
+            <table>
+              <thead><tr><th class="mono">code</th><th class="mono">% 10</th><th class="mono">after / 10</th><th class="mono">running sum</th></tr></thead>
+              <tbody>
+                <tr><td class="mono">583</td><td class="mono">3</td><td class="mono">58</td><td class="mono">3</td></tr>
+                <tr><td class="mono">58</td><td class="mono">8</td><td class="mono">5</td><td class="mono">11</td></tr>
+                <tr><td class="mono">5</td><td class="mono">5</td><td class="mono">0</td><td class="mono">16</td></tr>
+                <tr><td class="mono">0</td><td class="mono">—</td><td class="mono">loop ends</td><td class="mono"><b style="color:#b6f24a">16</b></td></tr>
+              </tbody>
+            </table>
+          </div>
+          <p class="src-note">The parameter is an <code class="inl">int</code>, so <code class="inl">accessCode /= 10</code> changes only the local copy — the caller's <code class="inl">code</code> is untouched, which is why the report can still print the checksum next to a valid code.</p>
+        </div>
+      </div>
+
+      <div class="card reveal" style="margin-top:calc(20px * var(--sp))">
+        <h3 style="margin-bottom:12px">The sigil as four equations</h3>
+        <div class="code" style="font-size:12.4px">
+          <div class="cb"><span class="fname"><i></i>DiamondRender(int radius)</span><span class="mono" style="font-size:11px;color:#5c6880">one grid, four edges</span></div>
+          <pre><span class="tok-k">for</span> (<span class="tok-k">int</span> outerRow = 1; outerRow &lt;= (2 * radius + 1); outerRow++) {
+    <span class="tok-k">for</span> (<span class="tok-k">int</span> outerCol = 1; outerCol &lt;= (2 * radius + 1); outerCol++) {
+        <span class="tok-k">if</span> ((outerRow + outerCol) == (radius + 2)          <span class="tok-c">// upper-left</span>
+            || (outerRow - outerCol) == radius              <span class="tok-c">// lower-left</span>
+            || (outerCol - outerRow) == radius              <span class="tok-c">// upper-right</span>
+            || (outerCol + outerRow) == (3 * radius) + 2)   <span class="tok-c">// lower-right</span>
+            System.out.print(<span class="tok-s">"* "</span>);
+        <span class="tok-k">else</span>
+            System.out.print(<span class="tok-s">"  "</span>);
+    }
+    System.out.println();
+}</pre>
+        </div>
+        <div class="grid g3" style="margin-top:16px">
+          <div>
+            <h3 style="font-size:14px"><span class="tag">why sums are diagonals</span></h3>
+            <p style="font-size:13.4px">Step one cell right and one cell down: <code class="inl">r + c</code> grows by 2, <code class="inl">r − c</code> stays the same. A constant <em>difference</em> is therefore a line running down-right; a constant <em>sum</em> is a line running down-left. Two of each make the four edges.</p>
+          </div>
+          <div>
+            <h3 style="font-size:14px"><span class="tag">why the constants</span></h3>
+            <p style="font-size:13.4px">The grid is <code class="inl">2R+1</code> wide, so the vertices are at <code class="inl">c = R+1</code> (top and bottom) and <code class="inl">r = R+1</code> (left and right). Substituting the top vertex into <code class="inl">r + c</code> gives <code class="inl">1 + R + 1 = R + 2</code>; the bottom vertex gives <code class="inl">2R+1 + R+1 = 3R + 2</code>. The two difference edges need the constant <code class="inl">R</code> to pass through those same corners.</p>
+          </div>
+          <div>
+            <h3 style="font-size:14px"><span class="tag">why 4R stars</span></h3>
+            <p style="font-size:13.4px">Each of the four edges holds <code class="inl">R + 1</code> cells, and the four vertices are each shared by two edges. So the total is <code class="inl">4(R + 1) − 4 = 4R</code>: 4, 8, 12, 16 for R = 1…4. Everything else — <code class="inl">(2R+1)² − 4R</code> cells — prints two spaces, which keeps the interior hollow.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="grid g2" style="margin-top:calc(20px * var(--sp));align-items:start">
+        <div class="card reveal">
+          <h3>The 2 × 2 that decides everything</h3>
+          <div class="tablewrap tight" style="margin-top:8px">
+            <table>
+              <thead><tr><th>sum</th><th class="mono">% 2</th><th class="mono">% 3</th><th>telemetry</th><th>access</th></tr></thead>
+              <tbody>
+                <tr><td class="mono">6 &nbsp;(123)</td><td class="mono">0</td><td class="mono">0</td><td><span class="st g">stable</span></td><td><span class="st g">granted</span></td></tr>
+                <tr><td class="mono">16 &nbsp;(583)</td><td class="mono">0</td><td class="mono">1</td><td><span class="st g">stable</span></td><td><span class="st n">denied</span></td></tr>
+                <tr><td class="mono">15 &nbsp;(555)</td><td class="mono">1</td><td class="mono">0</td><td><span class="st a">drift</span></td><td><span class="st g">granted</span></td></tr>
+                <tr><td class="mono">17 &nbsp;(584)</td><td class="mono">1</td><td class="mono">2</td><td><span class="st a">drift</span></td><td><span class="st n">denied</span></td></tr>
+              </tbody>
+            </table>
+          </div>
+          <p style="margin-top:14px;font-size:14px">All four combinations are reachable, so the console can be stable and still refuse you — and drifting while letting you in. The two outputs describe different things and must not be collapsed into one.</p>
+        </div>
+        <div class="card reveal" style="--d:120ms">
+          <h3>Where the four conditions fire, R = 3</h3>
+          <div class="tablewrap tight" style="margin-top:8px">
+            <table>
+              <thead><tr><th class="mono">row</th><th class="mono">r+c=5</th><th class="mono">c−r=3</th><th class="mono">r−c=3</th><th class="mono">r+c=11</th></tr></thead>
+              <tbody>
+                <tr><td class="mono">1</td><td class="mono">c 4</td><td class="mono">c 4</td><td class="mono">—</td><td class="mono">—</td></tr>
+                <tr><td class="mono">2</td><td class="mono">c 3</td><td class="mono">c 5</td><td class="mono">—</td><td class="mono">—</td></tr>
+                <tr><td class="mono">3</td><td class="mono">c 2</td><td class="mono">c 6</td><td class="mono">—</td><td class="mono">—</td></tr>
+                <tr><td class="mono">4</td><td class="mono">c 1</td><td class="mono">c 7</td><td class="mono">c 1</td><td class="mono">c 7</td></tr>
+                <tr><td class="mono">5</td><td class="mono">—</td><td class="mono">—</td><td class="mono">c 2</td><td class="mono">c 6</td></tr>
+                <tr><td class="mono">6</td><td class="mono">—</td><td class="mono">—</td><td class="mono">c 3</td><td class="mono">c 5</td></tr>
+                <tr><td class="mono">7</td><td class="mono">—</td><td class="mono">—</td><td class="mono">c 4</td><td class="mono">c 4</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <p class="src-note">Upper half from the sum-and-right conditions, lower half from the difference-and-sum ones, meeting on row 4 — the widest row — where both pairs fire at columns 1 and 7. Rows 1 and 7 fire twice at the same column, which is harmless: the test is a boolean <code class="inl">||</code>.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= 04 CONCEPTS ================= -->
+  <section class="section" id="concepts">
+    <div class="wrap">
+      <div class="head reveal">
+        <div class="eyebrow"><b>04</b> Key Java concepts</div>
+        <h2>What the code is actually demonstrating</h2>
+        <p class="lead">Nine ideas carry this console. Each card says what the concept does <em>here</em>, why it is used, and what to carry forward.</p>
+      </div>
+
+      <div class="grid g3">
+        <div class="card reveal">
+          <h3><span class="tag">validation loops</span></h3>
+          <p><code class="inl">while (R &lt; 1 || R &gt; 4) { … R = scanner.nextInt(); }</code> — the read happens inside the loop, so an illegal value cannot escape.</p>
+          <p><strong>Why:</strong> the prompt is a promise that the next value is usable. <strong>Learn:</strong> validate with a loop that re-reads, never with a single <code class="inl">if</code> that continues anyway.</p>
+        </div>
+
+        <div class="card reveal" style="--d:80ms">
+          <h3><span class="tag">digit extraction</span></h3>
+          <p><code class="inl">% 10</code> gives the last digit, <code class="inl">/ 10</code> removes it. Repeating until the number is zero visits every digit exactly once.</p>
+          <p><strong>Why:</strong> the checksum must be computed, not stored. <strong>Learn:</strong> this pair is the standard way to read a number's digits without converting it to a <code class="inl">String</code>.</p>
+        </div>
+
+        <div class="card reveal" style="--d:160ms">
+          <h3><span class="tag">integer division</span></h3>
+          <p><code class="inl">5 / 10</code> is <code class="inl">0</code> in Java, not 0.5. That truncation is what ends the loop: the last digit leaves a zero behind.</p>
+          <p><strong>Why:</strong> the loop condition is <code class="inl">&gt; 0</code>, so it relies on truncation. <strong>Learn:</strong> with <code class="inl">int</code> maths, division is a floor towards zero — the same rule that makes <code class="inl">5 / 2 + 1 = 3</code>.</p>
+        </div>
+
+        <div class="card reveal">
+          <h3><span class="tag">static helpers</span></h3>
+          <p>Two <code class="inl">public static</code> methods split the program: <code class="inl">checkSum</code> computes, <code class="inl">DiamondRender</code> prints. <code class="inl">main</code> only reads, decides and calls.</p>
+          <p><strong>Why:</strong> a calculation and a rendering have nothing to do with each other. <strong>Learn:</strong> the split is what makes each half testable — <code class="inl">checkSum(583)</code> can be checked without any console output.</p>
+        </div>
+
+        <div class="card reveal" style="--d:80ms">
+          <h3><span class="tag">coordinate predicates</span></h3>
+          <p>Every cell is decided by <code class="inl">(outerRow, outerCol)</code>. Nothing is printed from the loop counters directly; the star question is asked as an arithmetic test.</p>
+          <p><strong>Why:</strong> one rule must hold for every radius. <strong>Learn:</strong> describe a shape as a property of the cell, not as a list of rows.</p>
+        </div>
+
+        <div class="card reveal" style="--d:160ms">
+          <h3><span class="tag">union of edges</span></h3>
+          <p>A hollow diamond is the boundary of four line segments. Four <code class="inl">||</code> conditions draw exactly the boundary — the interior never matches, so it stays blank without any special case.</p>
+          <p><strong>Why:</strong> one grid, one pass, no upper/lower halves stitched together. <strong>Learn:</strong> hollow shapes come free when you describe the outline rather than the fill.</p>
+        </div>
+
+        <div class="card reveal">
+          <h3><span class="tag">short-circuit ||</span></h3>
+          <p>At the four vertices two conditions are true at once — the top cell satisfies both <code class="inl">r + c == R+2</code> and <code class="inl">c − r == R</code>. Because the test is a boolean OR, it still prints a single star.</p>
+          <p><strong>Why:</strong> overlapping equations must not double-print. <strong>Learn:</strong> overlapping conditions are safe only when the action is idempotent, as printing once is.</p>
+        </div>
+
+        <div class="card reveal" style="--d:80ms">
+          <h3><span class="tag">Scanner ordering</span></h3>
+          <p><code class="inl">nextLine()</code> is used for the call sign <em>before</em> any <code class="inl">nextInt()</code>. That ordering avoids the classic leftover-newline bug, where a later <code class="inl">nextLine()</code> would read an empty string.</p>
+          <p><strong>Why:</strong> it happens to be safe here. <strong>Learn:</strong> <code class="inl">nextInt()</code> leaves the line ending in the buffer; mixing the two in the other order breaks.</p>
+        </div>
+
+        <div class="card reveal" style="--d:160ms">
+          <h3><span class="tag">conditional phases</span></h3>
+          <p>The sigil exists only inside the <code class="inl">if (checkSum % 3 == 0)</code> branch. A denied run prints no diamond, and the report's last line is chosen by the same test — so the text cannot contradict the drawing.</p>
+          <p><strong>Why:</strong> a lockdown message next to a rendered sigil would be a lie. <strong>Learn:</strong> derive every claim in a report from the same condition that produced the action.</p>
+        </div>
+      </div>
+
+      <div class="grid g2" style="margin-top:calc(18px * var(--sp));align-items:start">
+        <div class="card reveal">
+          <h3><span class="tag">naming &amp; shadowing</span> <span style="font-weight:500;color:var(--muted);font-size:14px">two small frictions</span></h3>
+          <p><code class="inl">int checkSum = checkSum(code);</code> is legal: the local variable is declared after the method call is resolved, and Java allows a variable to share a method's name. It compiles — but a reader has to work out which <code class="inl">checkSum</code> is meant on each line.</p>
+          <p><code class="inl">DiamondRender</code> starts with a capital letter, which by Java convention marks a class, not a method. The code runs either way; the convention exists so other people can read it at a glance.</p>
+          <p class="src-note">Also visible: the method parameter is named <code class="inl">accessCode</code> and is reassigned inside the loop. That is fine because it is a copy, but a parameter that changes meaning halfway is harder to follow than a separate local.</p>
+        </div>
+        <div class="card reveal" style="--d:120ms">
+          <h3><span class="tag">redundancy</span> <span style="font-weight:500;color:var(--muted);font-size:14px">the repeated test</span></h3>
+          <div class="stream" style="margin-top:8px;font-size:11.6px;white-space:pre-wrap"><span style="color:#7f93a0">while</span> (R &lt; 1 || R &gt; 4) {
+    <span style="color:#7f93a0">if</span> (R &lt; 1 || R &gt; 4)      <span style="color:#5f6b86">// already known</span>
+        print(...);
+    print(prompt);
+    R = scanner.nextInt();
+}</div>
+          <p style="margin-top:12px;font-size:14px">Inside a loop whose condition is exactly that test, the inner <code class="inl">if</code> is always true. It changes nothing about the output — it is a reading cost, not a bug. The same pattern appears in the code-validation loop.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= 05 EXPERIMENT ================= -->
+  <section class="section" id="experiment">
+    <div class="wrap">
+      <div class="head reveal">
+        <div class="eyebrow"><b>05</b> Interactive experimentation</div>
+        <h2>Run the console without compiling it</h2>
+        <p class="lead">Change the radius and the access code and watch every derived value move together: the grid grows, the checksum is recomputed digit by digit, telemetry and authorisation are re-decided, and the sigil either appears or disappears.</p>
+      </div>
+
+      <div class="lab2 reveal">
+        <div class="hud">
+          <div class="fieldrow" style="margin-top:0">
+            <span class="lab">diamond radius</span>
+            <div class="rbtns" id="rbtns"></div>
+          </div>
+          <div class="fieldrow">
+            <span class="lab">access code</span>
+            <input class="codeinput" id="codeIn" type="text" inputmode="numeric" maxlength="3" value="123" aria-label="three digit access code" />
+            <span class="mono" style="font-size:11px;color:#6f829a" id="codeMsg">100 – 999</span>
+          </div>
+
+          <div style="margin-top:18px;display:flex;justify-content:center">
+            <div id="sigGrid" aria-label="containment sigil grid"></div>
+          </div>
+
+          <div class="ctl" style="justify-content:center">
+            <button class="sw" id="swSpaces" type="button"><span class="knob"></span>show spaces</button>
+            <button class="sw" id="swCond" type="button"><span class="knob"></span>colour by condition</button>
+            <button class="sw" id="swCoords" type="button"><span class="knob"></span>coordinates</button>
+          </div>
+
+          <div class="dlegend" style="justify-content:center">
+            <span><i class="a"></i>r + c = R+2</span>
+            <span><i class="b"></i>r − c = R</span>
+            <span><i class="c"></i>c − r = R</span>
+            <span><i class="d"></i>r + c = 3R+2</span>
+            <span><i class="w"></i>"  " blank cell</span>
+          </div>
+
+          <div class="statrow" style="margin-top:16px;grid-template-columns:repeat(4,minmax(0,1fr))">
+            <div class="stat"><span class="lab">grid</span><span class="val" id="gSize">7 × 7</span></div>
+            <div class="stat"><span class="lab">cells</span><span class="val" id="gCells">49</span></div>
+            <div class="stat"><span class="lab">stars</span><span class="val hot" id="gStars">12</span></div>
+            <div class="stat"><span class="lab">row width</span><span class="val" id="gWidth">14</span></div>
+          </div>
+        </div>
+
+        <div>
+          <div class="hud" style="padding:calc(18px * var(--sp))">
+            <div class="tc-head" style="margin-bottom:10px">checksum, extracted mathematically</div>
+            <div class="digits" id="digStrip"></div>
+            <div style="margin-top:14px;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+              <span class="st b" id="telChip">stable</span>
+              <span class="st g" id="authChip">access granted</span>
+            </div>
+            <div class="kvs" style="margin-top:16px">
+              <div class="r"><span class="k">CheckSum</span><span class="v" id="kvSum">6</span></div>
+              <div class="r"><span class="k">sum % 2</span><span class="v" id="kvPar">0 → STABLE</span></div>
+              <div class="r"><span class="k">sum % 3</span><span class="v" id="kvMod">0 → GRANTED</span></div>
+              <div class="r"><span class="k">sigil</span><span class="v" id="kvSig">rendered, radius 3</span></div>
+              <div class="r rev"><span class="k">final line</span><span class="v" id="kvFinal">CONTAINMENT RESTORED. SIGNAL ONLINE</span></div>
+            </div>
+          </div>
+
+          <div class="hud" style="padding:calc(18px * var(--sp));margin-top:14px">
+            <div class="tc-head" style="margin-bottom:10px">what the console prints</div>
+            <pre class="con" id="miniOut" style="max-height:230px"></pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="grid g2" style="margin-top:calc(20px * var(--sp));align-items:start">
+        <div class="card reveal">
+          <h3><span class="tag">validation drill</span> <span style="font-weight:500;color:var(--muted);font-size:14px">what a rejected value prints</span></h3>
+          <p style="font-size:14px">Type any integer and test it against a field. The console prints the rejection and asks again — the value is never used.</p>
+          <div class="fieldrow" style="margin-top:12px">
+            <input class="codeinput" id="drillVal" type="text" value="7" aria-label="value to test" style="width:88px" />
+            <button class="rbtn" id="drillR" type="button">test as radius</button>
+            <button class="rbtn" id="drillC" type="button">test as code</button>
+          </div>
+          <pre class="con" id="drillOut" style="margin-top:12px;min-height:104px"></pre>
+          <p class="src-note">Both loops are identical in shape: print a rejection, re-print the prompt, read again. There is no attempt limit — the program relies on the operator, or on <span class="mono">CTRL+C</span>, as its message says.</p>
+        </div>
+
+        <div class="card reveal" style="--d:120ms">
+          <h3>Row ledger for the current radius</h3>
+          <div class="tablewrap tight" style="margin-top:8px">
+            <table>
+              <thead><tr><th class="mono">row</th><th class="mono">star columns</th><th>which equations fired</th></tr></thead>
+              <tbody id="ledger"></tbody>
+            </table>
+          </div>
+          <p class="src-note">Every row holds either one star (the vertices) or two. No row is ever empty, and the interior never receives a star at any radius.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= 06 TRACE ================= -->
+  <section class="section" id="walkthrough">
+    <div class="wrap">
+      <div class="head reveal">
+        <div class="eyebrow"><b>06</b> Step-by-step execution</div>
+        <h2>Trace a whole session, keystroke by keystroke</h2>
+        <p class="lead">Four recorded sessions, including the invalid inputs the validation loops reject. Watch the console output grow, the counters change, and the branch decision arrive at exactly one point in the run.</p>
+      </div>
+
+      <div class="trace reveal">
+        <div class="trace-bar">
+          <label class="mono" for="traceCase" style="color:var(--dim);font-size:11.5px;letter-spacing:.14em;text-transform:uppercase">session</label>
+          <select id="traceCase">
+            <option value="grant" selected>ORION-7 · R 7→2 · code 42→123 · GRANTED</option>
+            <option value="deny">VEGA-3 · R 3 · code 583 · DENIED</option>
+            <option value="drift">LYRA-9 · R 1 · code 555 · DRIFT + GRANTED</option>
+            <option value="deny2">NOVA-1 · R 4 · code 584 · DRIFT + DENIED</option>
+          </select>
+          <button class="tbtn" id="tPrev" type="button">◀ prev</button>
+          <button class="tbtn primary" id="tPlay" type="button">▶ play</button>
+          <button class="tbtn" id="tNext" type="button">next ▶</button>
+          <button class="tbtn" id="tReset" type="button">↺ reset</button>
+          <span class="trace-count" id="traceCount">step 1 / 1</span>
+        </div>
+
+        <div class="trace-grid">
+          <div class="now-card">
+            <div class="stepno" id="stepNo">step 1</div>
+            <h3 id="stepTitle">—</h3>
+            <p class="detail" id="stepDetail">—</p>
+            <div class="vars" id="stepVars"></div>
+            <div class="stack">
+              <div class="sh"><span>call stack</span><b id="stackState">main running</b></div>
+              <div class="frame active" id="frameMain"><span class="name">main(String[] args)</span><span class="meta">console session</span></div>
+              <div class="frame" id="frameSum"><span class="name">checkSum(accessCode)</span><span class="meta">returns int</span></div>
+              <div class="frame" id="frameRender"><span class="name">DiamondRender(radius)</span><span class="meta">prints the grid</span></div>
+            </div>
+          </div>
+          <div>
+            <div class="tc-head">console output so far</div>
+            <pre class="con" id="traceOut" style="height:280px;overflow:auto;font-size:11px"></pre>
+            <div class="tc-head" style="margin-top:12px">current row of the sigil</div>
+            <div class="stream" id="traceRow" style="min-height:40px;font-size:11.5px;overflow-x:auto;white-space:pre">—</div>
+            <div class="rail" id="traceRail"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= 07 OUTPUT ================= -->
+  <section class="section" id="output">
+    <div class="wrap">
+      <div class="head reveal">
+        <div class="eyebrow"><b>07</b> Output explanation</div>
+        <h2>Two runs, side by side</h2>
+        <p class="lead">The granted run draws a sigil and ends with a restored station. The denied run prints no sigil at all, and its report says so. Everything else — prompts, blank lines, the report skeleton — is identical.</p>
+      </div>
+
+      <div class="grid g2" style="align-items:start">
+        <div class="reveal">
+          <div class="tc-head" style="margin-bottom:8px">granted · ORION-7 · R = 2 · code 123 → Σ 6</div>
+          <pre class="con" id="outGrant" style="font-size:11.2px"></pre>
+          <ul style="margin-top:14px;font-size:13.6px">
+            <li><strong>Lines 1–8</strong> — the three prompts. Two typed values were rejected first (radius <code class="inl">7</code>, code <code class="inl">42</code>), so the rejection text appears twice.</li>
+            <li><strong>Blank line before ACCESS GRANTED</strong> — that <code class="inl">print("\nACCESS GRANTED\n")</code> begins with a newline on purpose.</li>
+            <li><strong>The sigil</strong> — five rows of ten characters, produced by <code class="inl">DiamondRender(2)</code>.</li>
+            <li><strong>Two blank lines</strong> — one from the bare <code class="inl">println()</code> after the render, one from the leading <code class="inl">\n</code> in the report header.</li>
+            <li><strong>Report</strong> — call sign, checksum, telemetry, then the restored line.</li>
+          </ul>
+        </div>
+
+        <div class="reveal" style="--d:120ms">
+          <div class="tc-head" style="margin-bottom:8px">denied · VEGA-3 · R = 3 · code 583 → Σ 16</div>
+          <pre class="con" id="outDeny" style="font-size:11.2px"></pre>
+          <ul style="margin-top:14px;font-size:13.6px">
+            <li><strong>No sigil.</strong> The radius was read and validated, but <code class="inl">DiamondRender</code> is never called — the render sits inside the granted branch.</li>
+            <li><strong>ACCESS DENIED, then a line holding one space.</strong> The statement is <code class="inl">print("\nACCESS DENIED\n ")</code> — a trailing space and no final newline, so the space sits alone on its own line.</li>
+            <li><strong>No blank line before the report header</strong>, unlike the granted run: the header's leading <code class="inl">\n</code> terminates that stranded space instead of starting a fresh gap.</li>
+            <li><strong>The report still prints in full</strong> — checksum and telemetry are facts, not privileges.</li>
+            <li><strong>Verdict line</strong> — <code class="inl">"\nLOCKDOWN MAINTAINED. SIGNAL OFFLINE\n"</code>, wrapped in two newlines of its own.</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="grid g2" style="margin-top:calc(20px * var(--sp));align-items:start">
+        <div class="card reveal">
+          <h3>Printed vs computed</h3>
+          <div class="tablewrap tight" style="margin-top:8px">
+            <table>
+              <thead><tr><th>quantity</th><th>kind</th><th>visible?</th></tr></thead>
+              <tbody>
+                <tr><td class="mono">prompts and rejections</td><td>console output</td><td><span class="pill ok">yes</span></td></tr>
+                <tr><td class="mono">sigil rows</td><td>console output</td><td><span class="pill ok">yes</span></td></tr>
+                <tr><td class="mono">checkSum</td><td>computed, then printed in the report</td><td><span class="pill ok">yes</span></td></tr>
+                <tr><td class="mono">2R + 1</td><td>loop bound</td><td><span class="pill neu">inferred from the grid</span></td></tr>
+                <tr><td class="mono">which equation matched</td><td>branch inside the cell test</td><td><span class="pill bad">invisible</span></td></tr>
+                <tr><td class="mono">rejected attempts</td><td>transient input</td><td><span class="pill bad">not summarised</span></td></tr>
+              </tbody>
+            </table>
+          </div>
+          <p class="src-note">The report never mentions how many invalid attempts were made — the loop forgets them.</p>
+        </div>
+
+        <div class="card reveal" style="--d:120ms">
+          <h3>Where each report line comes from</h3>
+          <div class="kvs" style="margin-top:8px">
+            <div class="r"><span class="k">===Shutdown Report====</span><span class="v">literal, printed after both branches</span></div>
+            <div class="r"><span class="k">Operator Call-sign</span><span class="v">the String read at line 1, unvalidated</span></div>
+            <div class="r"><span class="k">CheckSum</span><span class="v">return value of checkSum(code)</span></div>
+            <div class="r"><span class="k">Telemetry Status</span><span class="v">"STABLE" if sum % 2 == 0 else "DRIFT DETECTED"</span></div>
+            <div class="r rev"><span class="k">final line</span><span class="v">the same sum % 3 test as the branch above</span></div>
+          </div>
+          <p style="margin-top:14px;font-size:13.8px">Note the asymmetry in presentation: the granted verdict is a plain <code class="inl">println</code>, while the denied verdict is wrapped in extra newlines. The extra spacing in the denied run comes from that string, not from a separate formatting step.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= 08 EDGE CASES ================= -->
+  <section class="section" id="edges">
+    <div class="wrap">
+      <div class="head reveal">
+        <div class="eyebrow"><b>08</b> Edge cases, correctness &amp; limitations</div>
+        <h2>Where the console is solid — and where it is not</h2>
+        <p class="lead">The validation loops do their job for out-of-range integers. The exposed edges are elsewhere: non-numeric input, the strength of a checksum as a password, and a few formatting details that live in the source rather than in the logic.</p>
+      </div>
+
+      <div class="tablewrap reveal">
+        <table>
+          <thead><tr><th>situation</th><th>what happens</th><th>verdict</th></tr></thead>
+          <tbody>
+            <tr><td class="mono">R = 0, 5, −3</td><td>rejection message, prompt again — the loop cannot exit with an illegal radius</td><td><span class="pill ok">handled</span></td></tr>
+            <tr><td class="mono">code = 99 or 1000</td><td>same pattern; the range check holds</td><td><span class="pill ok">handled</span></td></tr>
+            <tr><td class="mono">type "abc" at a prompt</td><td><code class="inl">InputMismatchException</code> — the program ends with a stack trace; no type validation exists</td><td><span class="pill bad">unhandled</span></td></tr>
+            <tr><td class="mono">call sign left empty</td><td>accepted; the report prints <code class="inl">Operator Call-sign : </code> with nothing after it</td><td><span class="pill neu">no check</span></td></tr>
+            <tr><td class="mono">call sign with spaces</td><td>kept whole, because <code class="inl">nextLine()</code> reads the entire line</td><td><span class="pill ok">works</span></td></tr>
+            <tr><td class="mono">code = 100</td><td>Σ = 1 → DRIFT DETECTED → DENIED. The smallest legal code fails both tests</td><td><span class="pill ok">correct</span></td></tr>
+            <tr><td class="mono">code = 999</td><td>Σ = 27 → DRIFT DETECTED → GRANTED. The largest checksum still authorises</td><td><span class="pill ok">correct</span></td></tr>
+            <tr><td class="mono">code = "050"</td><td>read as the integer 50 → rejected. A three-digit code with a leading zero cannot be entered at all</td><td><span class="pill neu">input model</span></td></tr>
+            <tr><td class="mono">R = 1</td><td>3 × 3 grid, 4 stars — still a hollow diamond, the smallest one possible</td><td><span class="pill ok">correct</span></td></tr>
+            <tr><td class="mono">R = 4</td><td>9 × 9 grid, 81 cells, 16 stars, row width 18</td><td><span class="pill ok">correct</span></td></tr>
+            <tr><td class="mono">denied run</td><td>no sigil, no restored message — the claim matches the branch</td><td><span class="pill ok">correct</span></td></tr>
+            <tr><td class="mono">repeated invalid input</td><td>the loop never gives up; the operator is told <span class="mono">CTRL+C to exit</span></td><td><span class="pill neu">by design</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="grid g2" style="margin-top:calc(20px * var(--sp));align-items:start">
+        <div class="card reveal">
+          <h3>Limitations in this implementation</h3>
+          <ul style="font-size:13.9px">
+            <li><strong>A checksum is not a password.</strong> Any code whose digits sum to a multiple of 3 is admitted — exactly <b>300 of the 900</b> legal codes, one third. Worse, the sum ignores order: <code class="inl">583</code>, <code class="inl">853</code> and <code class="inl">385</code> all authorise or all fail together.</li>
+            <li><strong>Divisibility by 3 has a shortcut.</strong> Since <code class="inl">10 ≡ 1 (mod 3)</code>, a number and its digit sum always share the same remainder mod 3. So <code class="inl">checkSum % 3 == 0</code> is mathematically identical to <code class="inl">code % 3 == 0</code> — verified across all 900 codes. The checksum is still needed for the report and for telemetry, but the access decision does not actually depend on it.</li>
+            <li><strong>Telemetry does depend on the sum.</strong> Parity is <em>not</em> preserved by digit sums: <code class="inl">100</code> is even while its digits sum to 1. Half of all legal codes get a different telemetry status under the two rules, which is why this one must be computed from the digits.</li>
+            <li><strong>No type validation.</strong> A letter at a numeric prompt throws <code class="inl">InputMismatchException</code>. The loops guard the <em>value</em> but not the <em>kind</em> of input, so the console crashes instead of rejecting.</li>
+            <li><strong>No attempt limit and no lockout.</strong> An operator can retry the code forever; nothing counts attempts, so a script could brute-force all 900 codes in seconds.</li>
+            <li><strong>The call sign is never checked.</strong> Any string — including an empty one — is accepted as an operator identity, and it is echoed into the report as-is.</li>
+            <li><strong>Formatting leaks the branch.</strong> The denied path leaves a line containing a single space and omits the blank line before the header; the two outcomes do not share a layout.</li>
+            <li><strong><code class="inl">main</code> is the only test surface.</strong> The logic is reachable only through the console, so checked correctness here came from re-implementing the methods, not from running them in isolation.</li>
+          </ul>
+        </div>
+
+        <div class="reveal" style="--d:120ms">
+          <h3>Correctness, stated carefully</h3>
+          <p><strong>As a specification: met.</strong> Both ranges are enforced with re-reading loops. The checksum is computed from the digits with <code class="inl">% 10</code> and <code class="inl">/ 10</code>, never stored. The diamond is one grid, one pass, four derived conditions, hollow at every radius from 1 to 4. A denied run prints no sigil, and its final line says lockdown — the report cannot claim a restoration that did not happen.</p>
+          <p><strong>As a security design: theatrical.</strong> That is consistent with the fiction, and the code is honest about what it computes. But the authorisation rule admits a third of all codes and completely ignores digit order, so it is a puzzle, not a credential check.</p>
+          <p><strong>As an input handler: partial.</strong> Values are validated; types are not. Everything else in the console is well behaved.</p>
+
+          <h3 style="margin-top:22px">Hypothetical probes — <span style="color:#ffb066">not this program</span></h3>
+          <p style="font-size:13.8px">Two thought experiments that show where the limits actually sit. The submitted code never runs these.</p>
+
+          <div class="probe" style="margin-top:12px">
+            <div class="ph"><span>radius 5, guard removed</span><b>hypothetical</b></div>
+            <pre id="probeR5"></pre>
+            <p style="font-size:13px;margin:10px 0 0;color:#cfe6f0">The four equations scale without any change: an 11 × 11 grid, 20 stars, still hollow. Only the <code class="inl">R &gt; 4</code> check stops this — the renderer itself has no upper limit. What would break is the framing, not the shape.</p>
+          </div>
+
+          <div class="probe" style="margin-top:10px">
+            <div class="ph"><span>telemetry on the code vs on the checksum</span><b>hypothetical</b></div>
+            <pre id="probePar"></pre>
+            <p style="font-size:13px;margin:10px 0 0;color:#cfe6f0">Half of all codes disagree, because parity is not preserved by a digit sum. This is the one place where the checksum is genuinely load-bearing — and the reason the report prints the sum, not just the code.</p>
+          </div>
+
+          <div class="note warn" style="margin-top:14px"><b>Not modified.</b> Section 11 reproduces the submitted file exactly, including the trailing space after <code class="inl">ACCESS DENIED</code>.</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= 09 COMPLEXITY ================= -->
+  <section class="section" id="complexity">
+    <div class="wrap">
+      <div class="head reveal">
+        <div class="eyebrow"><b>09</b> Time &amp; space complexity</div>
+        <h2>Three digits, then a square</h2>
+        <p class="lead">The checksum costs one loop over the digits — three iterations at most. The sigil costs one pass over a square grid. With R capped at 4, the whole program is bounded at 81 cell decisions, so the analysis is interesting for what it says about scaling, not about speed.</p>
+      </div>
+
+      <div class="grid g2" style="align-items:start">
+        <div class="card reveal">
+          <h3>Time</h3>
+          <div class="tablewrap tight" style="margin-top:8px">
+            <table>
+              <thead><tr><th>part</th><th>cost</th><th>at the limits</th></tr></thead>
+              <tbody>
+                <tr><td>validation loops</td><td class="mono">O(k) per field</td><td>k = attempts; unbounded by design</td></tr>
+                <tr><td><code class="inl">checkSum</code></td><td class="mono">O(d)</td><td>d = 3 digits → 3 iterations</td></tr>
+                <tr><td>telemetry + auth</td><td class="mono">O(1)</td><td>two remainders</td></tr>
+                <tr><td><code class="inl">DiamondRender</code></td><td class="mono">O(R²)</td><td>(2R+1)² cells: 9 → 81</td></tr>
+                <tr><td>report</td><td class="mono">O(1)</td><td>four lines</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <p style="margin-top:14px">The inner cell test is a constant amount of work: at most four comparisons plus a print. So the sigil is exactly <code class="inl">4R² + 4R + 1</code> cell visits, and the whole console is <code class="inl">Θ(R²)</code> in time for a granted run and <code class="inl">Θ(1)</code> for a denied one — the expensive part is skipped entirely.</p>
+          <div class="bars" id="barChart" style="margin-top:16px">
+            <div class="barrow"><span>R = 1 · cells</span><div class="bartrack"><div class="barfill" data-w="11"></div></div><span class="ops">9</span></div>
+            <div class="barrow"><span>R = 2 · cells</span><div class="bartrack"><div class="barfill" data-w="31"></div></div><span class="ops">25</span></div>
+            <div class="barrow"><span>R = 3 · cells</span><div class="bartrack"><div class="barfill" data-w="60"></div></div><span class="ops">49</span></div>
+            <div class="barrow"><span>R = 4 · cells</span><div class="bartrack"><div class="barfill" data-w="100"></div></div><span class="ops">81</span></div>
+          </div>
+          <p class="src-note">Stars grow linearly while cells grow quadratically — 4R against (2R+1)². At R = 4 only 16 of 81 cells are stars.</p>
+        </div>
+
+        <div class="reveal" style="--d:120ms">
+          <h3>Space — <span class="mono" style="color:#b6f24a">Θ(1)</span></h3>
+          <p>Two loop counters, one <code class="inl">int</code> accumulator, three input variables and one <code class="inl">Scanner</code>. No array holds the grid: each cell is decided, printed and forgotten, so memory does not grow with the radius at all.</p>
+          <p>That is a real design choice, not an accident — the same shape could have been built in a <code class="inl">char[][]</code> and printed afterwards, which would cost <code class="inl">O(R²)</code> space for no benefit here.</p>
+
+          <h3 style="margin-top:22px">If the radius were unbounded</h3>
+          <p>Remove the 1–4 guard and the cost becomes <code class="inl">O(R²)</code> in time and output characters: each row is <code class="inl">2(2R+1) = 4R + 2</code> characters, so a full sigil is roughly <code class="inl">8R²</code> characters written to the console. At R = 500 that is two million characters — still instant, but no longer something a terminal window can show.</p>
+
+          <div class="tablewrap tight" style="margin-top:14px">
+            <table>
+              <thead><tr><th class="mono">R</th><th class="mono">cells</th><th class="mono">stars</th><th class="mono">blanks</th><th class="mono">row chars</th></tr></thead>
+              <tbody>
+                <tr><td class="mono">1</td><td class="mono">9</td><td class="mono">4</td><td class="mono">5</td><td class="mono">6</td></tr>
+                <tr><td class="mono">2</td><td class="mono">25</td><td class="mono">8</td><td class="mono">17</td><td class="mono">10</td></tr>
+                <tr><td class="mono">3</td><td class="mono">49</td><td class="mono">12</td><td class="mono">37</td><td class="mono">14</td></tr>
+                <tr><td class="mono">4</td><td class="mono">81</td><td class="mono">16</td><td class="mono">65</td><td class="mono">18</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <p class="src-note">Both blank counts and star counts are exact: <code class="inl">4R</code> and <code class="inl">(2R+1)² − 4R</code>. The interior grows much faster than the outline.</p>
+
+          <div class="note">Bounded input makes the worst case trivial — the real cost of this program is the operator's typing, not the arithmetic.</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= 10 TAKEAWAYS ================= -->
+  <section class="section" id="takeaways">
+    <div class="wrap">
+      <div class="head reveal">
+        <div class="eyebrow"><b>10</b> Takeaways &amp; future connections</div>
+        <h2>What this console teaches</h2>
+      </div>
+
+      <div class="grid g3">
+        <div class="card reveal">
+          <h3><span class="tag">lesson</span> <span style="font-size:15px">validate by re-reading</span></h3>
+          <p>A validation loop has three parts: test the value, tell the operator, read again. All three must live in the loop body — if the read is outside, the loop spins forever, and if the test is only an <code class="inl">if</code>, the bad value is used anyway.</p>
+          <p>The pattern here repeats twice with different bounds, which is exactly the point: one shape, two ranges.</p>
+        </div>
+
+        <div class="card reveal" style="--d:100ms">
+          <h3><span class="tag">habit</span> <span style="font-size:15px">derive, do not list</span></h3>
+          <p>The diamond is four equations, not four row lists. That single decision is what lets <code class="inl">DiamondRender(1)</code> and a hypothetical <code class="inl">DiamondRender(5)</code> work with no edits — the shape is a property of the grid, not of a table of coordinates.</p>
+          <p>Which equations? Two constant sums for the down-left edges, two constant differences for the down-right ones.</p>
+        </div>
+
+        <div class="card reveal" style="--d:200ms">
+          <h3><span class="tag">insight</span> <span style="font-size:15px">one number, two meanings</span></h3>
+          <p><code class="inl">checkSum</code> answers two different questions: is the telemetry steady (<code class="inl">% 2</code>) and may this operator proceed (<code class="inl">% 3</code>). They are independent, and the console can be stable yet refuse access — the 2 × 2 table from section 03 is the whole design in one grid.</p>
+        </div>
+      </div>
+
+      <div class="grid g2" style="margin-top:calc(18px * var(--sp));align-items:start">
+        <div class="challenge reveal">
+          <h3>Check your understanding</h3>
+          <p style="color:#c6d1ec;margin-bottom:6px">A code can print <b>STABLE</b> and still be denied. Explain how, then give one code that prints <b>DRIFT DETECTED</b> and is granted.</p>
+          <button class="tbtn reveal-btn" id="chal1" type="button">show answer</button>
+          <div class="answer" id="ans1">The two tests look at different remainders of the same sum. <code class="inl">583</code> sums to 16: 16 is even, so telemetry is STABLE, but 16 ÷ 3 leaves 1, so authorisation fails. For the reverse, any odd multiple of 3 works — <code class="inl">555</code> sums to 15, which is odd (DRIFT DETECTED) and divisible by 3 (GRANTED). <code class="inl">915</code>, <code class="inl">177</code> and <code class="inl">393</code> all behave the same way. Telemetry describes the station; authorisation describes the operator. They share an input, not a conclusion.</div>
+        </div>
+
+        <div class="challenge reveal" style="--d:120ms">
+          <h3>One more</h3>
+          <p style="color:#c6d1eb;margin-bottom:6px">The conditions include both <code class="inl">r − c == R</code> and <code class="inl">c − r == R</code>. Why is only one of them ever true at a given cell, and why are both needed anyway?</p>
+          <button class="tbtn reveal-btn" id="chal2" type="button">show answer</button>
+          <div class="answer" id="ans2">They describe opposite diagonals. A constant <em>difference</em> <code class="inl">r − c</code> draws a line running down-right, which gives the lower-left edge; a constant <code class="inl">c − r</code> draws down-left, giving the upper-right edge. For a single cell both cannot hold unless <code class="inl">R = 0</code>, so they never conflict — but each is needed to close one half of the outline. The two <code class="inl">r + c</code> conditions work the same way with the constants <code class="inl">R + 2</code> and <code class="inl">3R + 2</code>, one for the upper-left edge and one for the lower-right. Four edges, four equations, one boolean test.</div>
+        </div>
+      </div>
+
+      <div class="card reveal" style="margin-top:calc(18px * var(--sp))">
+        <h3><span class="tag">later</span></h3>
+        <p>The habit worth keeping is the one this file already shows: separate the <em>decision</em> from the <em>drawing</em>. <code class="inl">checkSum</code> returns a number and prints nothing; <code class="inl">DiamondRender</code> draws and decides nothing. Each can be reasoned about — and, in a version with a test harness, checked — on its own.</p>
+        <p>The next step is not about diamonds at all. It is about what happens when a program must survive input it did not expect: a letter where a number belongs, an empty call sign, an operator who keeps guessing. Handling that means reading whole lines and parsing them deliberately, which is the bridge from these console programs to any program that talks to a person.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= 11 SOURCE ================= -->
+  <section class="section" id="source">
+    <div class="wrap">
+      <div class="head reveal">
+        <div class="eyebrow"><b>11</b> Your original Java source</div>
+        <h2>TheLastSignal.java — verbatim</h2>
+        <p class="lead">The file exactly as submitted: two static helpers, two validation loops, four coordinate equations, and a report whose last line depends on the same branch as the sigil.</p>
+      </div>
+
+      <div class="src-wrap reveal">
+        <div class="code" id="srcCode">
+          <div class="cb">
+            <span class="fname"><i></i>TheLastSignal.java · package projects</span>
+            <button class="copy-btn" id="copySrc" type="button">copy source</button>
+          </div>
+          <pre id="srcPre">package projects;
+
+import java.util.*;
+
+public class TheLastSignal {
+    public static int checkSum(int accessCode) {
+        int chkSum = 0;
+        while (accessCode &gt; 0) {
+            chkSum += (accessCode % 10);
+            accessCode /= 10;
+        }
+        return chkSum;
+    }
+
+    public static void DiamondRender(int radius) {
+
+        for (int outerRow = 1; outerRow &lt;= (2 * radius + 1); outerRow++) {
+            for (int outerCol = 1; outerCol &lt;= (2 * radius + 1); outerCol++) {
+                if ((outerRow + outerCol) == (radius + 2) || (outerRow - outerCol) == radius
+                        || (outerCol - outerRow) == radius || (outerCol + outerRow) == (3 * radius) + 2)
+                    System.out.print("* ");
+                else {
+                    System.out.print("  ");
+                }
+            }
+            System.out.println();
+        }
+    }
+
+    public static void main(String[] args) {
+        Scanner scanner = new Scanner(System.in);
+
+        // accepting call sign (a String)
+        System.out.print("Please enter your call-sign (string only) : ");
+        String callSign = scanner.nextLine();
+
+        // accepting A diamond radius R, an integer between 1 and 4
+        System.out.print("Please enter diamond radius (1 - 4) : ");
+        int R = scanner.nextInt();
+        while (R &lt; 1 || R &gt; 4) {
+            if (R &lt; 1 || R &gt; 4)
+                System.out.print("Invalid Input entered... \nplease retry!\nCTRL+C to exit\n");
+            System.out.print("Please enter diamond radius (1 - 4) : ");
+            R = scanner.nextInt();
+        }
+
+        // accepting A three-digit access code, an integer between 100 and 999
+        System.out.print("Please enter a three-digit access code (100 and 999) : ");
+        int code = scanner.nextInt();
+        while (code &lt; 100 || code &gt; 999) {
+            if (code &lt; 100 || code &gt; 999) {
+                System.out.print("Invalid Input entered... \nplease retry!\nCTRL+C to exit\n");
+            }
+            System.out.print("Please enter a three-digit access code (100 and 999) : ");
+            code = scanner.nextInt();
+        }
+
+        int checkSum = checkSum(code);
+        String telmetryStatus;
+        if (checkSum % 2 == 0)
+            telmetryStatus = "STABLE";
+        else
+            telmetryStatus = "DRIFT DETECTED";
+
+        // auth via checksum
+        if (checkSum % 3 == 0) {
+            System.out.print("\nACCESS GRANTED\n");
+            DiamondRender(R);
+            System.out.println();
+
+        } else {
+            System.out.print("\nACCESS DENIED\n ");
+        }
+
+        System.out.println("\n===Shutdown Report====");
+        System.out.println("Operator Call-sign : " + callSign);
+        System.out.println("CheckSum : " + checkSum);
+        System.out.println("Telemetry Status : " + telmetryStatus);
+        if (checkSum % 3 == 0)
+            System.out.println("CONTAINMENT RESTORED. SIGNAL ONLINE");
+        else
+            System.out.println("\nLOCKDOWN MAINTAINED. SIGNAL OFFLINE\n");
+
+        scanner.close();
+    }
+}</pre>
+        </div>
+        <p class="src-note">Copying yields the plain source, without colouring. Nothing is added, removed or reformatted — including the trailing space in <code class="inl">"\nACCESS DENIED\n "</code> and the misspelled <code class="inl">telmetryStatus</code>.</p>
+      </div>
+
+      <div class="grid g3" style="margin-top:calc(18px * var(--sp))">
+        <div class="card reveal">
+          <h3 style="font-size:15px">The two helpers</h3>
+          <div class="stream" style="margin-top:8px;font-size:11.6px;white-space:pre-wrap">checkSum(int)        → int
+  reads digits, prints nothing
+
+DiamondRender(int)  → void
+  prints the grid, returns nothing
+
+main(String[])      → void
+  reads, validates, decides,
+  calls both, prints the report</div>
+          <p style="font-size:13.2px;margin-top:10px">The split is clean: a pure calculation on one side, output on the other, and a <code class="inl">main</code> that only orchestrates.</p>
+        </div>
+        <div class="card reveal" style="--d:100ms">
+          <h3 style="font-size:15px">The four constants</h3>
+          <div class="stream" style="margin-top:8px;font-size:11.6px;white-space:pre-wrap">R + 2        upper-left edge
+R            upper-right / lower-left
+3R + 2       lower-right edge
+2R + 1       grid size, both loops</div>
+          <p style="font-size:13.2px;margin-top:10px">Nothing here is a magic number in the bad sense: every constant is written as an expression of <code class="inl">radius</code>, which is why the shape scales.</p>
+        </div>
+        <div class="card reveal" style="--d:200ms">
+          <h3 style="font-size:15px">What is not in the file</h3>
+          <ul style="font-size:13.4px">
+            <li>no <code class="inl">try / catch</code> around <code class="inl">nextInt()</code></li>
+            <li>no attempt counter or lockout</li>
+            <li>no validation of the call sign</li>
+            <li>no array holding the grid</li>
+            <li>no method to print the report</li>
+          </ul>
+          <p style="font-size:13.2px;margin-top:10px">What is there: exact range checks, a derived shape, and a report that cannot contradict the branch.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= 12 NEXT ================= -->
+  <section class="section" id="next">
+    <div class="wrap">
+      <div class="head reveal">
+        <div class="eyebrow"><b>12</b> Next learning step</div>
+        <h2>Where this could go next</h2>
+        <p class="lead">The console is complete against its own specification. The open question is what it should do with input it cannot read — and that is a different skill from the one this program practises.</p>
+      </div>
+
+      <div class="grid g2" style="align-items:start">
+        <div class="card reveal">
+          <h3>Make the console survive its operator</h3>
+          <p>Right now a letter at a numeric prompt ends the program. The fix is not a bigger <code class="inl">while</code> condition; it is to read a whole line, try to parse it, and treat failure as just another invalid value — the same loop, a wider notion of "invalid".</p>
+          <div class="stream" style="margin:12px 0;font-size:11.8px;white-space:pre-wrap">static int readInt(Scanner sc, int lo, int hi, String prompt) {
+    while (true) {
+        System.out.print(prompt);
+        String line = sc.nextLine().trim();
+        try {
+            int v = Integer.parseInt(line);
+            if (v &gt;= lo &amp;&amp; v &lt;= hi) return v;
+        } catch (NumberFormatException e) { }
+        System.out.print("Invalid Input entered... \nplease retry!\n");
+    }
+}</div>
+          <p>One helper replaces both validation loops, and the two ranges become arguments. It also removes the <code class="inl">nextInt()</code> / <code class="inl">nextLine()</code> hazard entirely, because every read consumes a full line.</p>
+          <p class="src-note"><strong>Not assumed.</strong> Whether that is the next program you write is your call — the page stops at the question rather than choosing a destination for you.</p>
+        </div>
+        <div class="card reveal" style="--d:120ms">
+          <h3>What carries forward from this file</h3>
+          <ul>
+            <li><strong>Re-read, do not proceed.</strong> A validation loop must read again inside the loop body.</li>
+            <li><strong><code class="inl">% 10</code> then <code class="inl">/ 10</code>.</strong> The pair that turns a number into its digits, and the truncation that ends the loop.</li>
+            <li><strong>Constant sum, constant difference.</strong> The two diagonal families; everything diagonal in grid work uses them.</li>
+            <li><strong>One grid, one pass.</strong> No stitching halves, no coordinate tables.</li>
+            <li><strong>Same test, same verdict.</strong> Let the report's claims come from the condition that produced the action.</li>
+            <li><strong>Know what your rule really checks.</strong> <code class="inl">sum % 3</code> is equivalent to <code class="inl">code % 3</code> — a useful thing to notice before trusting it.</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<footer>
+  <div class="wrap foot-in">
+    <p>The Last Signal — TheLastSignal.java dissected from the submitted source. Behaviour described here matches the code as written.</p>
+    <p class="mono">package projects · Scanner · while validation · % 10 · nested loops · coordinate equations</p>
+  </div>
+</footer>
+
+<div class="dock" id="dock">
+  <div class="dock-panel" id="dockPanel">
+    <div class="grp">
+      <span class="glab">balance</span>
+      <div class="seg" id="segDensity">
+        <button data-density="comfort" type="button">comfort</button>
+        <button data-density="balanced" class="on" type="button">balanced</button>
+        <button data-density="compact" type="button">compact</button>
+      </div>
+    </div>
+    <div class="grp">
+      <span class="glab">glow</span>
+      <div class="seg" id="segGlow">
+        <button data-glow="low" type="button">low</button>
+        <button data-glow="medium" class="on" type="button">soft</button>
+        <button data-glow="high" type="button">high</button>
+      </div>
+    </div>
+  </div>
+  <button class="dock-toggle" id="dockToggle" type="button" aria-expanded="false" aria-controls="dockPanel">
+    <span class="g"></span>
+    <span id="dockCur">balanced · soft</span>
+    <svg class="chev" width="11" height="11" viewBox="0 0 12 12" fill="none" aria-hidden="true"><path d="M2.5 8L6 4.5 9.5 8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+  </button>
+</div>
+
+<script>
+(function(){
+  "use strict";
+
+  /* ============================================================
+     faithful model of TheLastSignal.java
+     ============================================================ */
+  var LO_R = 1, HI_R = 4, LO_C = 100, HI_C = 999;
+
+  function checkSum(code){
+    var s = 0, k = code;
+    while (k > 0) { s += k % 10; k = Math.floor(k / 10); }
+    return s;
+  }
+  function conds(r, c, R){
+    var out = [];
+    if ((r + c) === (R + 2)) out.push('a');
+    if ((r - c) === R) out.push('b');
+    if ((c - r) === R) out.push('c');
+    if ((r + c) === ((3 * R) + 2)) out.push('d');
+    return out;
+  }
+  function isStar(r, c, R){ return conds(r, c, R).length > 0; }
+  function sigilRows(R){
+    var n = 2 * R + 1, rows = [];
+    for (var r = 1; r <= n; r++) {
+      var s = '';
+      for (var c = 1; c <= n; c++) s += isStar(r, c, R) ? '* ' : '  ';
+      rows.push(s);
+    }
+    return rows;
+  }
+  function esc(t){ return String(t).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
+
+  /* ============================================================
+     shared chrome
+     ============================================================ */
+  var reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  var revealEls = document.querySelectorAll('.reveal');
+  if ('IntersectionObserver' in window) {
+    var io = new IntersectionObserver(function(entries){
+      entries.forEach(function(e){ if (e.isIntersecting) { e.target.classList.add('in'); io.unobserve(e.target); } });
+    }, { rootMargin: '0px 0px -8% 0px', threshold: 0.08 });
+    revealEls.forEach(function(el){ io.observe(el); });
+  } else { revealEls.forEach(function(el){ el.classList.add('in'); }); }
+
+  var progress = document.getElementById('progress');
+  var navLinks = Array.prototype.slice.call(document.querySelectorAll('.nav-links a'));
+  var navTargets = navLinks.map(function(a){ return document.querySelector(a.getAttribute('href')); });
+  function onScroll(){
+    var h = document.documentElement;
+    var max = (h.scrollHeight - h.clientHeight) || 1;
+    if (progress) progress.style.transform = 'scaleX(' + Math.min(1, Math.max(0, h.scrollTop / max)) + ')';
+    var idx = -1;
+    for (var i = 0; i < navTargets.length; i++) {
+      if (navTargets[i] && navTargets[i].getBoundingClientRect().top <= 150) idx = i;
+    }
+    navLinks.forEach(function(a, i){ a.classList.toggle('active', i === idx); });
+  }
+  window.addEventListener('scroll', onScroll, { passive: true });
+  onScroll();
+
+  var verdictCard = document.getElementById('verdictCard');
+  if (verdictCard && !reduceMotion && window.matchMedia('(hover: hover)').matches) {
+    var host = verdictCard.parentElement;
+    host.addEventListener('mousemove', function(ev){
+      var r = host.getBoundingClientRect();
+      var x = (ev.clientX - r.left) / r.width - 0.5;
+      var y = (ev.clientY - r.top) / r.height - 0.5;
+      verdictCard.style.transform = 'rotateY(' + (x * 7).toFixed(2) + 'deg) rotateX(' + (-y * 7).toFixed(2) + 'deg) translateZ(12px)';
+    });
+    host.addEventListener('mouseleave', function(){ verdictCard.style.transform = ''; });
+  }
+
+  var dock = document.getElementById('dock');
+  var dockToggle = document.getElementById('dockToggle');
+  var dockCur = document.getElementById('dockCur');
+  function syncDockLabel(){
+    if (!dockCur) return;
+    var d = document.querySelector('#segDensity button.on');
+    var g = document.querySelector('#segGlow button.on');
+    dockCur.textContent = (d ? d.textContent : 'balanced') + ' · ' + (g ? g.textContent : 'soft');
+  }
+  function bindSeg(id, attr){
+    var box = document.getElementById(id);
+    if (!box) return;
+    box.addEventListener('click', function(ev){
+      var b = ev.target.closest('button');
+      if (!b) return;
+      box.querySelectorAll('button').forEach(function(x){ x.classList.remove('on'); });
+      b.classList.add('on');
+      document.documentElement.setAttribute('data-' + attr, b.getAttribute('data-' + attr));
+      syncDockLabel();
+    });
+  }
+  bindSeg('segDensity', 'density');
+  bindSeg('segGlow', 'glow');
+  syncDockLabel();
+
+  if (dock && dockToggle) {
+    var idleTimer = null, closeTimer = null;
+    function openDock(){ dock.classList.add('panel-open'); dock.classList.remove('idle'); dockToggle.setAttribute('aria-expanded','true'); if (closeTimer){ clearTimeout(closeTimer); closeTimer = null; } }
+    function closeDock(){ dock.classList.remove('panel-open'); dockToggle.setAttribute('aria-expanded','false'); }
+    function scheduleClose(){ if (closeTimer) clearTimeout(closeTimer); closeTimer = setTimeout(closeDock, 900); }
+    function wakeDock(){
+      dock.classList.remove('idle');
+      if (idleTimer) clearTimeout(idleTimer);
+      idleTimer = setTimeout(function(){ if (!dock.classList.contains('panel-open')) dock.classList.add('idle'); }, 2600);
+    }
+    dockToggle.addEventListener('click', function(){ dock.classList.contains('panel-open') ? closeDock() : openDock(); wakeDock(); });
+    dock.addEventListener('mouseenter', openDock);
+    dock.addEventListener('mouseleave', scheduleClose);
+    dock.addEventListener('focusin', openDock);
+    dock.addEventListener('focusout', scheduleClose);
+    document.addEventListener('keydown', function(ev){ if (ev.key === 'Escape') closeDock(); });
+    document.addEventListener('pointerdown', function(ev){ if (!dock.contains(ev.target)) closeDock(); });
+    window.addEventListener('scroll', wakeDock, { passive: true });
+    wakeDock();
+  }
+
+  [['chal1','ans1'],['chal2','ans2']].forEach(function(pair){
+    var btn = document.getElementById(pair[0]), ans = document.getElementById(pair[1]);
+    if (!btn || !ans) return;
+    btn.addEventListener('click', function(){
+      var open = ans.classList.toggle('open');
+      btn.textContent = open ? 'hide answer' : 'show answer';
+    });
+  });
+
+  var chart = document.getElementById('barChart');
+  if (chart && 'IntersectionObserver' in window) {
+    var bo = new IntersectionObserver(function(es){
+      es.forEach(function(e){
+        if (!e.isIntersecting) return;
+        chart.querySelectorAll('.barfill').forEach(function(f, i){
+          setTimeout(function(){ f.style.width = f.getAttribute('data-w') + '%'; }, i * 90);
+        });
+        bo.disconnect();
+      });
+    }, { threshold: 0.35 });
+    bo.observe(chart);
+  }
+
+  /* ============================================================
+     sigil grid builder
+     ============================================================ */
+  function buildSigil(R, opts){
+    opts = opts || {};
+    var n = 2 * R + 1, cell = opts.cell || 22, labels = opts.labels !== false;
+    var wrap = document.createElement('div');
+    wrap.className = 'sig';
+    wrap.style.gridTemplateColumns = (labels ? '18px ' : '') + 'repeat(' + n + ', ' + cell + 'px)';
+
+    if (labels) {
+      var corner = document.createElement('div');
+      corner.className = 'rh';
+      wrap.appendChild(corner);
+      for (var c0 = 1; c0 <= n; c0++) {
+        var h = document.createElement('div');
+        h.className = 'rh';
+        h.textContent = c0;
+        wrap.appendChild(h);
+      }
+    }
+    for (var r = 1; r <= n; r++) {
+      if (labels) {
+        var rl = document.createElement('div');
+        rl.className = 'rl';
+        rl.textContent = r;
+        wrap.appendChild(rl);
+      }
+      for (var c = 1; c <= n; c++) {
+        var d = document.createElement('div');
+        d.className = 'c';
+        d.style.width = cell + 'px';
+        d.style.height = cell + 'px';
+        var cs = conds(r, c, R);
+        var on = cs.length > 0;
+        if (on) {
+          d.classList.add('on');
+          if (opts.byCond) cs.forEach(function(k){ d.classList.add('cond-' + k); });
+          d.title = 'row ' + r + ', column ' + c + ' → "' + '* ' + '"   [' + cs.join(' / ') + ']';
+          if (opts.pulse && !reduceMotion) {
+            d.classList.add('pulse');
+            d.style.animationDelay = Math.min(r * 26 + c * 8, 420) + 'ms';
+          }
+        } else {
+          d.title = 'row ' + r + ', column ' + c + ' → "' + '  ' + '"';
+          if (opts.spaces) d.classList.add('showws');
+        }
+        wrap.appendChild(d);
+      }
+    }
+    return wrap;
+  }
+
+  /* ============================================================
+     hero
+     ============================================================ */
+  (function hero(){
+    var host = document.getElementById('heroSig');
+    if (!host) return;
+    host.appendChild(buildSigil(3, { cell: 18, labels: false, byCond: true, pulse: true }));
+    var st = document.getElementById('heroStats');
+    if (st) st.innerHTML = 'code 123 → 1 + 2 + 3 = <b style="color:#b6f24a">6</b> → STABLE → GRANTED<br>grid (2R+1)² = 49 cells · stars 4R = 12';
+  })();
+
+  /* ============================================================
+     section 05 — sigil lab
+     ============================================================ */
+  var lab = { R: 3, code: 123, spaces: false, cond: false };
+
+  var rbtns = document.getElementById('rbtns');
+  var codeIn = document.getElementById('codeIn');
+  var codeMsg = document.getElementById('codeMsg');
+  var sigHost = document.getElementById('sigGrid');
+  var swSpaces = document.getElementById('swSpaces');
+  var swCond = document.getElementById('swCond');
+
+  if (rbtns) {
+    for (var r0 = 1; r0 <= 4; r0++) {
+      (function(n){
+        var b = document.createElement('button');
+        b.className = 'rbtn' + (n === lab.R ? ' on' : '');
+        b.type = 'button';
+        b.textContent = 'R = ' + n;
+        b.setAttribute('data-r', n);
+        b.addEventListener('click', function(){
+          lab.R = n;
+          Array.prototype.forEach.call(rbtns.children, function(x){ x.classList.toggle('on', Number(x.getAttribute('data-r')) === n); });
+          renderLab();
+        });
+        rbtns.appendChild(b);
+      })(r0);
+    }
+  }
+
+  function renderLab(){
+    var R = lab.R, code = lab.code, n = 2 * R + 1;
+    var sum = checkSum(code);
+    var stable = (sum % 2 === 0);
+    var granted = (sum % 3 === 0);
+
+    if (sigHost) {
+      sigHost.innerHTML = '';
+      var grid = buildSigil(R, { cell: 22, labels: true, spaces: lab.spaces, byCond: lab.cond, pulse: true });
+      if (!granted) {
+        grid.style.opacity = '.28';
+        grid.style.filter = 'grayscale(.65)';
+        grid.title = 'not printed — access denied';
+      } else {
+        grid.style.opacity = '';
+        grid.style.filter = '';
+      }
+      sigHost.appendChild(grid);
+      var cap = document.createElement('div');
+      cap.className = 'mono';
+      cap.style.cssText = 'text-align:center;font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;margin-top:10px;color:' + (granted ? '#7e93a0' : '#ffb3b3');
+      cap.textContent = granted ? 'rendered · ' + (4 * R) + ' stars' : 'not rendered — access denied';
+      sigHost.appendChild(cap);
+    }
+
+    var set = function(id, v){ var e = document.getElementById(id); if (e) e.textContent = v; };
+    set('gSize', n + ' × ' + n);
+    set('gCells', String(n * n));
+    set('gStars', String(4 * R));
+    set('gWidth', String(2 * n));
+
+    var strip = document.getElementById('digStrip');
+    if (strip) {
+      strip.innerHTML = '';
+      var ds = [];
+      var k = code;
+      while (k > 0) { ds.push(k % 10); k = Math.floor(k / 10); }
+      var ordered = ds.slice().reverse();
+      ordered.forEach(function(d, i){
+        var tile = document.createElement('div');
+        tile.className = 'dg' + (i === ordered.length - 1 ? ' hot' : '');
+        tile.textContent = d;
+        strip.appendChild(tile);
+        if (i < ordered.length - 1) {
+          var op = document.createElement('span');
+          op.className = 'dop';
+          op.textContent = '+';
+          strip.appendChild(op);
+        }
+      });
+      var eq = document.createElement('span');
+      eq.className = 'dop';
+      eq.textContent = '=';
+      strip.appendChild(eq);
+      var sumEl = document.createElement('span');
+      sumEl.className = 'dsum';
+      sumEl.textContent = sum;
+      strip.appendChild(sumEl);
+    }
+
+    var tel = document.getElementById('telChip');
+    if (tel) { tel.className = 'st ' + (stable ? 'b' : 'a'); tel.textContent = stable ? 'stable' : 'drift detected'; }
+    var auth = document.getElementById('authChip');
+    if (auth) { auth.className = 'st ' + (granted ? 'g' : 'n'); auth.textContent = granted ? 'access granted' : 'access denied'; }
+
+    set('kvSum', String(sum));
+    set('kvPar', (sum % 2) + ' → ' + (stable ? 'STABLE' : 'DRIFT DETECTED'));
+    set('kvMod', (sum % 3) + ' → ' + (granted ? 'GRANTED' : 'DENIED'));
+    set('kvSig', granted ? ('rendered, radius ' + R + ' · ' + (4 * R) + ' stars') : 'not rendered');
+    set('kvFinal', granted ? 'CONTAINMENT RESTORED. SIGNAL ONLINE' : 'LOCKDOWN MAINTAINED. SIGNAL OFFLINE');
+
+    var out = document.getElementById('miniOut');
+    if (out) {
+      var lines = [];
+      lines.push(granted ? '<span class="ok">ACCESS GRANTED</span>' : '<span class="no">ACCESS DENIED</span>');
+      if (granted) {
+        sigilRows(R).forEach(function(row){ lines.push('<span class="art">' + esc(row) + '</span>'); });
+        lines.push('');
+      } else {
+        lines.push('<span class="dim">(no sigil is rendered — the call sits inside the granted branch)</span>');
+      }
+      lines.push('<span class="hd">===Shutdown Report====</span>');
+      lines.push('Operator Call-sign : ORION-7');
+      lines.push('CheckSum : ' + sum);
+      lines.push('Telemetry Status : ' + (stable ? 'STABLE' : 'DRIFT DETECTED'));
+      lines.push(granted ? '<span class="ok">CONTAINMENT RESTORED. SIGNAL ONLINE</span>' : '<span class="no">LOCKDOWN MAINTAINED. SIGNAL OFFLINE</span>');
+      out.innerHTML = lines.join('\n');
+    }
+
+    renderLedger();
+  }
+
+  function renderLedger(){
+    var body = document.getElementById('ledger');
+    if (!body) return;
+    body.innerHTML = '';
+    var R = lab.R, n = 2 * R + 1;
+    for (var r = 1; r <= n; r++) {
+      var cols = [], fired = [];
+      for (var c = 1; c <= n; c++) {
+        var cs = conds(r, c, R);
+        if (cs.length) { cols.push(c); fired.push(c + ':' + cs.join('')); }
+      }
+      var tr = document.createElement('tr');
+      var t1 = document.createElement('td'); t1.className = 'mono'; t1.textContent = r;
+      var t2 = document.createElement('td'); t2.className = 'mono'; t2.textContent = cols.join(', ');
+      t2.style.color = '#d9fca8';
+      var t3 = document.createElement('td'); t3.className = 'mono'; t3.style.fontSize = '11px'; t3.style.color = '#8fa7b0';
+      t3.textContent = fired.map(function(t){
+        var parts = t.split(':');
+        var names = parts[1].split('').map(function(k){ return { a: 'r+c=R+2', b: 'r−c=R', c: 'c−r=R', d: 'r+c=3R+2' }[k]; });
+        return 'col ' + parts[0] + ' → ' + names.join(' + ');
+      }).join('  ·  ');
+      tr.appendChild(t1); tr.appendChild(t2); tr.appendChild(t3);
+      body.appendChild(tr);
+    }
+  }
+
+  function bindSw(el, key){
+    if (!el) return;
+    el.classList.toggle('on', !!lab[key]);
+    el.addEventListener('click', function(){ lab[key] = !lab[key]; el.classList.toggle('on', lab[key]); renderLab(); });
+  }
+  bindSw(swSpaces, 'spaces');
+  bindSw(swCond, 'cond');
+  var swCoords = document.getElementById('swCoords');
+  if (swCoords) {
+    swCoords.addEventListener('click', function(){
+      swCoords.classList.toggle('on');
+      Array.prototype.forEach.call(document.querySelectorAll('#sigGrid .c'), function(c){ c.classList.toggle('showws', swCoords.classList.contains('on')); });
+    });
+  }
+
+  if (codeIn) {
+    codeIn.addEventListener('input', function(){
+      var raw = codeIn.value.replace(/[^0-9]/g, '').slice(0, 3);
+      if (raw !== codeIn.value) codeIn.value = raw;
+      var v = Number(raw);
+      var ok = raw.length === 3 && v >= LO_C && v <= HI_C;
+      codeIn.classList.toggle('bad', !ok);
+      if (codeMsg) {
+        codeMsg.textContent = ok ? 'valid · Σ = ' + checkSum(v) : 'the program would reject this and ask again';
+        codeMsg.style.color = ok ? '#6f829a' : '#ff9f9f';
+      }
+      if (ok) { lab.code = v; renderLab(); }
+    });
+  }
+  renderLab();
+
+  /* ============================================================
+     validation drill
+     ============================================================ */
+  (function drill(){
+    var valEl = document.getElementById('drillVal');
+    var outEl = document.getElementById('drillOut');
+    if (!valEl || !outEl) return;
+    function show(kind){
+      var raw = valEl.value.trim();
+      var isNum = /^[+-]?\d+$/.test(raw);
+      var prompt = kind === 'r' ? 'Please enter diamond radius (1 - 4) : '
+                                 : 'Please enter a three-digit access code (100 and 999) : ';
+      var v = Number(raw);
+      var ok = isNum && (kind === 'r' ? (v >= LO_R && v <= HI_R) : (v >= LO_C && v <= HI_C));
+      var lines = [];
+      lines.push('<span class="pm">' + esc(prompt) + '</span><span class="in">' + esc(raw) + '</span>');
+      if (!isNum) {
+        lines.push('<span class="er">Exception in thread "main" java.util.InputMismatchException</span>');
+        lines.push('<span class="dim">at java.util.Scanner.throwFor(Scanner.java:…)</span>');
+        lines.push('<span class="dim">the loop never gets a chance to re-prompt — the JVM ends the program instead</span>');
+      } else if (ok) {
+        lines.push('<span class="ok">accepted → the loop is skipped, the value is used</span>');
+        lines.push('<span class="dim">' + (kind === 'r' ? 'R = ' + v + ' → grid ' + (2 * v + 1) + ' × ' + (2 * v + 1) : 'code = ' + v + ' → Σ ' + checkSum(v)) + '</span>');
+      } else {
+        lines.push('<span class="er">Invalid Input entered... </span>');
+        lines.push('<span class="er">please retry!</span>');
+        lines.push('<span class="er">CTRL+C to exit</span>');
+        lines.push('<span class="pm">' + esc(prompt) + '</span><span class="dim">(waits for another value)</span>');
+      }
+      outEl.innerHTML = lines.join('\n');
+    }
+    document.getElementById('drillR').addEventListener('click', function(){ show('r'); });
+    document.getElementById('drillC').addEventListener('click', function(){ show('c'); });
+    show('r');
+  })();
+
+  /* ============================================================
+     section 07 transcripts + section 08 probes
+     ============================================================ */
+  var K = { prompt:'pm', typed:'in', err:'er', ok:'ok', no:'no', head:'hd', art:'art', plain:'out' };
+
+  function plainRun(cs, R, code, withRejections){
+    var sum = checkSum(code), stable = sum % 2 === 0, granted = sum % 3 === 0;
+    var segs = [];
+    segs.push(['pm', 'Please enter your call-sign (string only) : ']);
+    segs.push(['in', cs + '\n']);
+    segs.push(['pm', 'Please enter diamond radius (1 - 4) : ']);
+    if (withRejections) {
+      segs.push(['in', '7\n']);
+      segs.push(['er', 'Invalid Input entered... \nplease retry!\nCTRL+C to exit\n']);
+      segs.push(['pm', 'Please enter diamond radius (1 - 4) : ']);
+    }
+    segs.push(['in', R + '\n']);
+    segs.push(['pm', 'Please enter a three-digit access code (100 and 999) : ']);
+    if (withRejections) {
+      segs.push(['in', '42\n']);
+      segs.push(['er', 'Invalid Input entered... \nplease retry!\nCTRL+C to exit\n']);
+      segs.push(['pm', 'Please enter a three-digit access code (100 and 999) : ']);
+    }
+    segs.push(['in', code + '\n']);
+    if (granted) {
+      segs.push(['ok', '\nACCESS GRANTED\n']);
+      sigilRows(R).forEach(function(row){ segs.push(['art', row + '\n']); });
+      segs.push(['plain', '\n']);
+    } else {
+      segs.push(['no', '\nACCESS DENIED\n']);
+      segs.push(['plain', ' ']);
+    }
+    segs.push(['head', '\n===Shutdown Report====\n']);
+    segs.push(['plain', 'Operator Call-sign : ' + cs + '\n']);
+    segs.push(['plain', 'CheckSum : ' + sum + '\n']);
+    segs.push(['plain', 'Telemetry Status : ' + (stable ? 'STABLE' : 'DRIFT DETECTED') + '\n']);
+    if (granted) segs.push(['ok', 'CONTAINMENT RESTORED. SIGNAL ONLINE\n']);
+    else segs.push(['no', '\nLOCKDOWN MAINTAINED. SIGNAL OFFLINE\n\n']);
+    return segs;
+  }
+  function paint(el, segs){
+    el.innerHTML = segs.map(function(p){ return '<span class="' + K[p[0]] + '">' + esc(p[1]) + '</span>'; }).join('');
+  }
+
+  var og = document.getElementById('outGrant');
+  if (og) paint(og, plainRun('ORION-7', 2, 123, true));
+  var od = document.getElementById('outDeny');
+  if (od) paint(od, plainRun('VEGA-3', 3, 583, false));
+
+  var p5 = document.getElementById('probeR5');
+  if (p5) p5.textContent = sigilRows(5).join('\n');
+
+  var pp = document.getElementById('probePar');
+  if (pp) {
+    var rows = [['code', 'Σ digits', 'on code', 'on sum', 'agree?']];
+    [100, 101, 123, 583, 555, 584, 999].forEach(function(cd){
+      var s = checkSum(cd);
+      var a = (cd % 2 === 0) ? 'STABLE' : 'DRIFT';
+      var b = (s % 2 === 0) ? 'STABLE' : 'DRIFT';
+      rows.push([String(cd), String(s), a, b, a === b ? 'yes' : 'no']);
+    });
+    pp.textContent = rows.map(function(r){
+      return r[0].padEnd(7) + r[1].padEnd(9) + r[2].padEnd(9) + r[3].padEnd(9) + r[4];
+    }).join('\n');
+  }
+
+  /* ============================================================
+     section 06 — the trace
+     ============================================================ */
+  var SESS = {
+    grant: { cs: 'ORION-7', rIn: [7, 2], cIn: [42, 123] },
+    deny:  { cs: 'VEGA-3',  rIn: [3],    cIn: [583] },
+    drift: { cs: 'LYRA-9',  rIn: [1],    cIn: [555] },
+    deny2: { cs: 'NOVA-1',  rIn: [4],    cIn: [584] }
+  };
+
+  function buildSession(key){
+    var s = SESS[key];
+    var segs = [], steps = [];
+
+    function step(title, detail, vars, adds, row, frame){
+      (adds || []).forEach(function(p){ segs.push(p); });
+      steps.push({ title: title, detail: detail, vars: vars || [], row: row || '', frame: frame || 'main', upto: segs.length });
+    }
+
+    var RP = 'Please enter diamond radius (1 - 4) : ';
+    var CP = 'Please enter a three-digit access code (100 and 999) : ';
+    var REJ = 'Invalid Input entered... \nplease retry!\nCTRL+C to exit\n';
+
+    step('main() begins',
+      'A Scanner is opened on System.in and the statements begin to run in order. Nothing has been read yet, so no output exists either.',
+      [['phase', '1 · initialize'], ['inputs read', '0 / 3'], ['scanner', 'System.in']]);
+
+    step('print → call-sign prompt',
+      'System.out.print does not add a newline, so the cursor stays on the same line waiting for the operator.',
+      [['callSign', '—'], ['inputs read', '0 / 3']],
+      [['pm', 'Please enter your call-sign (string only) : ']]);
+
+    step('nextLine() → "' + s.cs + '"',
+      'The whole line is taken as a String, spaces included. No validation runs on it — whatever was typed becomes the operator identity in the report.',
+      [['callSign', s.cs], ['inputs read', '1 / 3']],
+      [['in', s.cs + '\n']]);
+
+    step('print → radius prompt',
+      'The radius is read with nextInt(), so the console now expects an integer token.',
+      [['R', '—'], ['inputs read', '1 / 3']],
+      [['pm', RP]]);
+
+    var R = null, attempts = 0;
+    s.rIn.forEach(function(v){
+      attempts++;
+      if (v < LO_R || v > HI_R) {
+        step('read R = ' + v + ' → rejected',
+          'The while condition is true, so the rejection is printed and the prompt is asked again. The illegal value is never used anywhere.',
+          [['R', v + ' ✗'], ['attempts', String(attempts)], ['inputs read', '1 / 3']],
+          [['in', v + '\n'], ['er', REJ], ['pm', RP]]);
+      } else {
+        R = v;
+        step('read R = ' + v + ' → accepted',
+          'The while condition fails, so the loop is skipped and R is now a legal radius. The grid will be ' + (2 * v + 1) + ' × ' + (2 * v + 1) + '.',
+          [['R', String(v)], ['grid', (2 * v + 1) + ' × ' + (2 * v + 1)], ['inputs read', '2 / 3']],
+          [['in', v + '\n']]);
+      }
+    });
+
+    step('print → access-code prompt',
+      'Same shape of prompt, different range: 100 to 999, so exactly three digits.',
+      [['code', '—'], ['inputs read', '2 / 3']],
+      [['pm', CP]]);
+
+    var code = null;
+    attempts = 0;
+    s.cIn.forEach(function(v){
+      attempts++;
+      if (v < LO_C || v > HI_C) {
+        step('read code = ' + v + ' → rejected',
+          'Below 100, so the code is not three digits. Rejected and re-prompted, exactly like the radius — the inner if is redundant with the loop condition but its body is what prints the message.',
+          [['code', v + ' ✗'], ['attempts', String(attempts)], ['inputs read', '2 / 3']],
+          [['in', v + '\n'], ['er', REJ], ['pm', CP]]);
+      } else {
+        code = v;
+        step('read code = ' + v + ' → accepted',
+          'A legal three-digit code. The loop exits and the value is passed to checkSum.',
+          [['code', String(v)], ['inputs read', '3 / 3']],
+          [['in', v + '\n']]);
+      }
+    });
+
+    var digits = [], k = code;
+    while (k > 0) { digits.push(k % 10); k = Math.floor(k / 10); }
+    var sum = checkSum(code);
+
+    step('call checkSum(' + code + ')',
+      'Control moves into the helper. The parameter is a copy of code, so nothing that happens next can change the operator\'s value.',
+      [['checkSum arg', String(code)], ['chkSum', '0']], [], '', 'sum');
+
+    var run = 0, rest = code;
+    digits.forEach(function(d, i){
+      run += d;
+      var before = rest;
+      rest = Math.floor(rest / 10);
+      step('digit ' + (i + 1) + ' of 3 → ' + d,
+        before + ' % 10 = ' + d + ', so chkSum becomes ' + run + '. Then ' + before + ' / 10 = ' + rest + (rest === 0 ? ', which is not > 0, so the loop ends.' : ' and the loop continues.'),
+        [['chkSum', String(run)], ['accessCode', String(rest)], ['digit', String(d)]], [], '', 'sum');
+    });
+
+    step('return ' + sum + ' to main',
+      'The helper returns, and the local chkSum disappears with the frame. Only the number travels back.',
+      [['checkSum', String(sum)], ['frame', 'main']], [], '', 'main');
+
+    var stable = (sum % 2 === 0);
+    step('telemetry ← ' + sum + ' % 2',
+      sum + ' % 2 = ' + (sum % 2) + ', so the status is ' + (stable ? '"STABLE"' : '"DRIFT DETECTED"') + '. This is a fact about the station and has no bearing on authorisation.',
+      [['sum', String(sum)], ['% 2', String(sum % 2)], ['telemetry', stable ? 'STABLE' : 'DRIFT']]);
+
+    var granted = (sum % 3 === 0);
+    step((granted ? 'granted' : 'denied') + ' ← ' + sum + ' % 3',
+      sum + ' % 3 = ' + (sum % 3) + '. ' + (granted
+        ? 'The branch prints ACCESS GRANTED and will call the renderer.'
+        : 'The branch prints ACCESS DENIED — and because the renderer sits inside the other branch, no sigil will exist in this run at all.'),
+      [['sum', String(sum)], ['% 3', String(sum % 3)], ['branch', granted ? 'granted' : 'denied']],
+      granted ? [['ok', '\nACCESS GRANTED\n']] : [['no', '\nACCESS DENIED\n'], ['plain', ' ']]);
+
+    if (granted) {
+      step('call DiamondRender(' + R + ')',
+        'One grid, (2R+1)² cells, four equations. Each cell is decided and printed immediately — nothing is stored.',
+        [['radius', String(R)], ['grid', (2 * R + 1) + ' × ' + (2 * R + 1)], ['stars so far', '0']], [], '', 'render');
+
+      var rows = sigilRows(R), tally = 0;
+      rows.forEach(function(row, i){
+        var stars = (row.match(/\*/g) || []).length;
+        tally += stars;
+        var cols = [], eq = [];
+        for (var cc = 1; cc <= 2 * R + 1; cc++) {
+          var cnd = conds(i + 1, cc, R);
+          if (cnd.length) { cols.push(cc); eq.push(cc + ':' + cnd.join('')); }
+        }
+        var why;
+        if (i === 0) why = 'The top vertex satisfies both upper edges at the same column, so a single star is printed there.';
+        else if (i === rows.length - 1) why = 'The bottom vertex mirrors the top: both lower edges land on the same cell.';
+        else why = 'Star columns ' + cols.join(' and ') + ' — fired by ' + eq.join(' · ') + '. Every other cell in the row prints two spaces.';
+        step('row ' + (i + 1) + ' → ' + stars + ' star' + (stars === 1 ? '' : 's'),
+          why,
+          [['outerRow', String(i + 1)], ['stars in row', String(stars)], ['stars total', String(tally)]],
+          [['art', row + '\n']], row, 'render');
+      });
+
+      step('println() after the render',
+        'The helper has finished. A bare println() writes one newline, leaving a blank line between the sigil and the report.',
+        [['stars total', String(4 * R)], ['frame', 'main']], [['plain', '\n']], '', 'main');
+    } else {
+      step('renderer skipped',
+        'DiamondRender is never called, because the call is inside the granted branch. The radius was validated and then not used — which is exactly what the specification asks for.',
+        [['radius', String(R) + ' (unused)'], ['sigil', 'none'], ['frame', 'main']]);
+    }
+
+    step('print → report header',
+      'The header begins with \\n, so in the denied run it terminates the stranded space, and in the granted run it opens a second blank line.',
+      [['report', 'start'], ['branch', granted ? 'granted' : 'denied']],
+      [['head', '\n===Shutdown Report====\n']]);
+
+    step('report → operator',
+      'The call sign is echoed back exactly as it was typed, with the double space around the colon that the literal contains.',
+      [['callSign', s.cs]],
+      [['plain', 'Operator Call-sign : ' + s.cs + '\n']]);
+
+    step('report → checksum and telemetry',
+      'Both are facts measured during the run, so they print identically in granted and denied sessions.',
+      [['CheckSum', String(sum)], ['Telemetry', stable ? 'STABLE' : 'DRIFT DETECTED']],
+      [['plain', 'CheckSum : ' + sum + '\n'], ['plain', 'Telemetry Status : ' + (stable ? 'STABLE' : 'DRIFT DETECTED') + '\n']]);
+
+    step('report → final verdict',
+      'The same % 3 test as before, evaluated a second time. Because both use the same sum, the text cannot contradict the branch that ran.',
+      [['% 3', String(sum % 3)], ['verdict', granted ? 'restored' : 'lockdown']],
+      granted ? [['ok', 'CONTAINMENT RESTORED. SIGNAL ONLINE\n']]
+              : [['no', '\nLOCKDOWN MAINTAINED. SIGNAL OFFLINE\n\n']]);
+
+    step('scanner.close() — main ends',
+      'The console is closed and the program exits with status 0. Every line above is the complete output of the run.',
+      [['lines written', String(segs.length)], ['exit', '0']]);
+
+    return { steps: steps, segs: segs };
+  }
+
+  var session = buildSession('grant'), at = 0;
+
+  var T = {
+    box: document.querySelector('.trace'),
+    card: document.querySelector('.now-card'),
+    no: document.getElementById('stepNo'),
+    title: document.getElementById('stepTitle'),
+    detail: document.getElementById('stepDetail'),
+    vars: document.getElementById('stepVars'),
+    out: document.getElementById('traceOut'),
+    row: document.getElementById('traceRow'),
+    rail: document.getElementById('traceRail'),
+    count: document.getElementById('traceCount'),
+    play: document.getElementById('tPlay'),
+    prev: document.getElementById('tPrev'),
+    next: document.getElementById('tNext'),
+    reset: document.getElementById('tReset'),
+    sel: document.getElementById('traceCase'),
+    state: document.getElementById('stackState'),
+    fMain: document.getElementById('frameMain'),
+    fSum: document.getElementById('frameSum'),
+    fRender: document.getElementById('frameRender')
+  };
+
+  function traceHTML(){
+    var known = session.steps[at].upto;
+    var out = '';
+    for (var i = 0; i < known; i++) {
+      var p = session.segs[i];
+      out += '<span class="' + K[p[0]] + '">' + esc(p[1]) + '</span>';
+    }
+    return out + '<span class="cur">&nbsp;</span>';
+  }
+
+  function renderTrace(animate){
+    if (!T.title) return;
+    at = Math.max(0, Math.min(session.steps.length - 1, at));
+    var s = session.steps[at];
+
+    if (animate && T.card) {
+      T.card.classList.add('swap');
+      setTimeout(function(){ T.card.classList.remove('swap'); }, 120);
+    }
+    T.no.textContent = 'step ' + (at + 1);
+    T.title.textContent = s.title;
+    T.detail.textContent = s.detail;
+
+    T.vars.innerHTML = '';
+    s.vars.forEach(function(pair){
+      var d = document.createElement('div');
+      d.className = 'vtile';
+      var k = document.createElement('div'); k.className = 'k'; k.textContent = pair[0];
+      var v = document.createElement('div'); v.className = 'v'; v.textContent = pair[1];
+      d.appendChild(k); d.appendChild(v);
+      T.vars.appendChild(d);
+    });
+
+    T.out.innerHTML = traceHTML();
+    T.out.scrollTop = T.out.scrollHeight;
+
+    if (s.row) {
+      T.row.textContent = s.row;
+      T.row.style.color = '#e8eefc';
+    } else {
+      T.row.textContent = '—';
+      T.row.style.color = '#4a6270';
+    }
+
+    T.count.textContent = 'step ' + (at + 1) + ' / ' + session.steps.length;
+
+    if (T.fMain) T.fMain.classList.toggle('active', s.frame === 'main');
+    if (T.fSum) T.fSum.classList.toggle('active', s.frame === 'sum');
+    if (T.fRender) T.fRender.classList.toggle('active', s.frame === 'render');
+    if (T.state) T.state.textContent = s.frame === 'sum' ? 'inside checkSum' : s.frame === 'render' ? 'inside DiamondRender' : 'main running';
+
+    if (T.rail) {
+      Array.prototype.forEach.call(T.rail.children, function(b, k){
+        b.classList.toggle('cur', k === at);
+        b.classList.toggle('done', k < at);
+      });
+    }
+  }
+
+  function buildRail(){
+    if (!T.rail) return;
+    T.rail.innerHTML = '';
+    session.steps.forEach(function(s, k){
+      var b = document.createElement('button');
+      b.type = 'button';
+      b.setAttribute('aria-label', 'go to step ' + (k + 1) + ': ' + s.title);
+      b.addEventListener('click', function(){ stopPlay(); at = k; renderTrace(true); });
+      T.rail.appendChild(b);
+    });
+  }
+
+  var playTimer = null;
+  function stopPlay(){
+    if (playTimer) { clearInterval(playTimer); playTimer = null; }
+    if (T.play) T.play.textContent = '▶ play';
+  }
+  function startPlay(){
+    stopPlay();
+    if (at >= session.steps.length - 1) { at = 0; renderTrace(false); }
+    T.play.textContent = '❚❚ pause';
+    playTimer = setInterval(function(){
+      if (at >= session.steps.length - 1) { stopPlay(); return; }
+      at++;
+      renderTrace(true);
+    }, reduceMotion ? 850 : 720);
+  }
+
+  if (T.play) {
+    T.play.addEventListener('click', function(){ playTimer ? stopPlay() : startPlay(); });
+    T.prev.addEventListener('click', function(){ stopPlay(); at--; renderTrace(true); });
+    T.next.addEventListener('click', function(){ stopPlay(); at++; renderTrace(true); });
+    T.reset.addEventListener('click', function(){ stopPlay(); at = 0; renderTrace(true); });
+    T.sel.addEventListener('change', function(){
+      stopPlay();
+      session = buildSession(T.sel.value);
+      at = 0;
+      buildRail();
+      renderTrace(false);
+    });
+    buildRail();
+    renderTrace(false);
+  }
+
+  /* ============================================================
+     section 11 — copy the source
+     ============================================================ */
+  var srcPre = document.getElementById('srcPre');
+  var copyBtn = document.getElementById('copySrc');
+  if (srcPre && copyBtn) {
+    var rawSource = srcPre.textContent;
+    copyBtn.addEventListener('click', function(){
+      var done = function(){
+        copyBtn.textContent = 'copied ✓'; copyBtn.classList.add('ok');
+        setTimeout(function(){ copyBtn.textContent = 'copy source'; copyBtn.classList.remove('ok'); }, 1900);
+      };
+      var fail = function(){
+        copyBtn.textContent = 'select + ctrl C';
+        try {
+          var rng = document.createRange(); rng.selectNodeContents(srcPre);
+          var sel = window.getSelection(); sel.removeAllRanges(); sel.addRange(rng);
+        } catch(e){}
+        setTimeout(function(){ copyBtn.textContent = 'copy source'; }, 2400);
+      };
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(rawSource).then(done).catch(fail);
+      } else {
+        try {
+          var ta = document.createElement('textarea');
+          ta.value = rawSource; ta.style.position = 'fixed'; ta.style.opacity = '0';
+          document.body.appendChild(ta); ta.select();
+          var ok = document.execCommand('copy');
+          document.body.removeChild(ta);
+          ok ? done() : fail();
+        } catch(e){ fail(); }
+      }
+    });
+  }
+})();
+</script>
+</body>
+</html>
