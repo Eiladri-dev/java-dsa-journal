@@ -1,0 +1,2824 @@
+<!DOCTYPE html>
+<html lang="en" data-density="balanced" data-glow="medium">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>The Architect's Sign — architectSignature.java dissected</title>
+<style>
+
+
+
+:root{
+  --bg:#05070d;
+  --panel:#0a0e17;
+  --ink:#e9edf8;
+  --muted:#9aa5bd;
+  --dim:#68728c;
+  --line:rgba(255,255,255,.075);
+  --line-strong:rgba(255,255,255,.16);
+  --brand:#4dd4ff;
+  --brand-2:#b6f24a;
+  --violet:#7dd3fc;
+  --amber:#ffb066;
+  --rose:#ff8ba0;
+  --green:#6ee7b7;
+  --sp:1;
+  --lh:1.65;
+  --glow:1;
+  --r:18px;
+  --wrap:1180px;
+  --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+}
+html[data-density="comfort"]{ --sp:1.2; --lh:1.8; }
+html[data-density="compact"]{ --sp:.76; --lh:1.55; }
+html[data-glow="low"]{ --glow:.4; }
+html[data-glow="high"]{ --glow:1.55; }
+
+*{ box-sizing:border-box; }
+html{ scroll-behavior:smooth; -webkit-text-size-adjust:100%; scroll-padding-top:84px; }
+body{
+  margin:0; padding:0;
+  background:var(--bg);
+  color:var(--ink);
+  font-family:"Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  font-size:16px;
+  line-height:var(--lh);
+  -webkit-font-smoothing:antialiased;
+  overflow-x:hidden;
+}
+p{ margin:0 0 calc(14px * var(--sp)); color:var(--muted); }
+p:last-child{ margin-bottom:0; }
+h1,h2,h3,h4{ margin:0; color:var(--ink); letter-spacing:-.025em; font-weight:640; line-height:1.14; }
+a{ color:var(--brand); text-decoration:none; }
+strong{ color:#f2f5ff; font-weight:620; }
+ul,ol{ margin:0 0 calc(14px * var(--sp)); padding-left:1.15em; color:var(--muted); }
+li{ margin-bottom:8px; }
+li::marker{ color:var(--brand); }
+::selection{ background:rgba(77,212,255,.32); color:#fff; }
+
+/* ---------- background ---------- */
+.bg-layer{ position:fixed; inset:0; z-index:0; pointer-events:none; overflow:hidden; }
+.orb{ position:absolute; border-radius:50%; filter:blur(90px); will-change:transform; }
+.orb-a{
+  width:52vw; height:52vw; top:-14vw; left:-10vw;
+  background:radial-gradient(circle at 40% 40%, rgba(77,212,255,.55), rgba(77,212,255,0) 68%);
+  opacity:calc(.5 * var(--glow));
+  animation:drift-a 26s ease-in-out infinite;
+}
+.orb-b{
+  width:46vw; height:46vw; top:22vh; right:-14vw;
+  background:radial-gradient(circle at 50% 50%, rgba(182,242,74,.42), rgba(182,242,74,0) 68%);
+  opacity:calc(.42 * var(--glow));
+  animation:drift-b 32s ease-in-out infinite;
+}
+.orb-c{
+  width:44vw; height:44vw; bottom:-16vw; left:24vw;
+  background:radial-gradient(circle at 50% 50%, rgba(183,156,255,.38), rgba(183,156,255,0) 70%);
+  opacity:calc(.34 * var(--glow));
+  animation:drift-c 38s ease-in-out infinite;
+}
+@keyframes drift-a{ 0%,100%{transform:translate3d(0,0,0) scale(1)} 50%{transform:translate3d(6vw,4vh,0) scale(1.08)} }
+@keyframes drift-b{ 0%,100%{transform:translate3d(0,0,0) scale(1.04)} 50%{transform:translate3d(-5vw,-6vh,0) scale(.94)} }
+@keyframes drift-c{ 0%,100%{transform:translate3d(0,0,0) scale(1)} 50%{transform:translate3d(4vw,-5vh,0) scale(1.1)} }
+
+.grid-lines{
+  position:absolute; inset:0;
+  background-image:
+    linear-gradient(to right, rgba(255,255,255,.05) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(255,255,255,.05) 1px, transparent 1px);
+  background-size:74px 74px;
+  mask-image:radial-gradient(ellipse 80% 60% at 50% 20%, #000 20%, transparent 78%);
+  -webkit-mask-image:radial-gradient(ellipse 80% 60% at 50% 20%, #000 20%, transparent 78%);
+  opacity:.5;
+}
+.noise{
+  position:absolute; inset:0; opacity:.22; mix-blend-mode:overlay;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)' opacity='0.4'/%3E%3C/svg%3E");
+}
+.vignette{ position:absolute; inset:0; background:radial-gradient(ellipse at 50% -10%, transparent 30%, rgba(5,7,13,.72) 82%); }
+
+/* ---------- nav ---------- */
+.nav{
+  position:fixed; top:0; left:0; right:0; z-index:80;
+  background:linear-gradient(180deg, rgba(5,7,13,.94), rgba(5,7,13,.56));
+  backdrop-filter:blur(16px) saturate(150%);
+  -webkit-backdrop-filter:blur(16px) saturate(150%);
+  border-bottom:1px solid rgba(255,255,255,.06);
+}
+.nav-in{
+  width:min(var(--wrap), 100% - 40px); margin-inline:auto;
+  display:flex; align-items:center; justify-content:space-between; gap:16px; height:62px;
+}
+.brand{ display:flex; align-items:center; gap:10px; font-weight:660; font-size:14.5px; letter-spacing:-.01em; color:var(--ink); white-space:nowrap; }
+.brand .dot{ width:9px; height:9px; border-radius:50%; background:var(--brand); box-shadow:0 0 16px var(--brand), 0 0 4px var(--brand); animation:pulse-dot 2.8s ease-in-out infinite; }
+@keyframes pulse-dot{ 0%,100%{ box-shadow:0 0 16px var(--brand), 0 0 4px var(--brand); } 50%{ box-shadow:0 0 26px var(--brand), 0 0 8px var(--brand); } }
+.brand span.sub{ color:var(--dim); font-weight:450; font-size:12.5px; letter-spacing:0; }
+.nav-links{ display:flex; gap:2px; align-items:center; min-width:0; }
+.nav-links a{
+  font-size:12.5px; color:var(--muted); padding:7px 10px; border-radius:9px;
+  transition:color .2s, background .2s, box-shadow .3s; white-space:nowrap;
+}
+.nav-links a:hover{ color:var(--ink); background:rgba(255,255,255,.055); }
+.nav-links a.active{
+  color:#fdf1e4; background:rgba(77,212,255,.13);
+  box-shadow:inset 0 0 0 1px rgba(77,212,255,.3), 0 0 24px -10px rgba(77,212,255,.9);
+}
+.progress{ position:absolute; left:0; right:0; bottom:-1px; height:2px; background:linear-gradient(90deg, var(--brand), var(--brand-2) 55%, var(--violet)); transform:scaleX(0); transform-origin:0 50%; transition:transform .1s linear; }
+
+/* ---------- layout ---------- */
+main{ position:relative; z-index:1; }
+.wrap{ width:min(var(--wrap), 100% - 44px); margin-inline:auto; }
+.section{ padding:calc(92px * var(--sp)) 0; position:relative; }
+.section + .section{ border-top:1px solid rgba(255,255,255,.045); }
+.eyebrow{
+  display:flex; align-items:center; gap:12px;
+  font-family:var(--mono); font-size:11.5px; font-weight:600; letter-spacing:.2em;
+  text-transform:uppercase; color:var(--dim);
+}
+.eyebrow::before{ content:""; width:34px; height:1px; background:linear-gradient(90deg, var(--brand), transparent); }
+.eyebrow b{ color:var(--brand); font-weight:600; }
+h2{ font-size:clamp(26px, 3.3vw, 40px); margin:16px 0 16px; }
+h3{ font-size:clamp(16.5px, 1.5vw, 19px); margin-bottom:10px; }
+.lead{ color:var(--muted); font-size:clamp(15px, 1.05vw, 17px); max-width:66ch; line-height:1.7; }
+.head{ margin-bottom:calc(38px * var(--sp)); max-width:74ch; }
+
+/* ---------- reveal ---------- */
+.reveal{ opacity:0; transform:translateY(22px); filter:blur(5px); transition:opacity .9s cubic-bezier(.22,1,.36,1), transform .9s cubic-bezier(.22,1,.36,1), filter .9s ease; transition-delay:var(--d, 0ms); }
+.reveal.in{ opacity:1; transform:none; filter:none; }
+
+/* ---------- cards ---------- */
+.card{
+  position:relative; border-radius:var(--r);
+  background:linear-gradient(158deg, rgba(255,255,255,.058), rgba(255,255,255,.014) 55%, rgba(255,255,255,.028));
+  border:1px solid var(--line);
+  padding:calc(24px * var(--sp));
+  box-shadow:0 1px 0 rgba(255,255,255,.05) inset, 0 30px 60px -42px rgba(0,0,0,.95);
+  transition:transform .5s cubic-bezier(.22,1,.36,1), border-color .4s, box-shadow .5s;
+  backdrop-filter:blur(10px);
+  overflow:hidden;
+}
+.card::before{
+  content:""; position:absolute; inset:0 0 auto 0; height:1px;
+  background:linear-gradient(90deg, transparent, rgba(77,212,255,.55), rgba(182,242,74,.35), transparent);
+  opacity:0; transition:opacity .5s;
+}
+.card:hover{ transform:translateY(-4px); border-color:var(--line-strong); box-shadow:0 1px 0 rgba(255,255,255,.07) inset, 0 46px 80px -48px rgba(0,0,0,1), 0 0 60px -34px rgba(77,212,255,.55); }
+.card:hover::before{ opacity:1; }
+.card h3{ display:flex; align-items:center; gap:10px; }
+.tag{
+  font-family:var(--mono); font-size:10.5px; letter-spacing:.12em; text-transform:uppercase;
+  padding:4px 8px; border-radius:6px; color:var(--brand);
+  background:rgba(77,212,255,.11); border:1px solid rgba(77,212,255,.22);
+}
+.grid{ display:grid; gap:calc(18px * var(--sp)); }
+.g3{ grid-template-columns:repeat(3, minmax(0,1fr)); }
+.g2{ grid-template-columns:repeat(2, minmax(0,1fr)); }
+@media (max-width:940px){ .g3{ grid-template-columns:1fr; } .g2{ grid-template-columns:1fr; } }
+
+/* ---------- hero ---------- */
+.hero{ position:relative; padding:calc(132px + 34px) 0 calc(84px * var(--sp)); }
+.hero-grid{ display:grid; grid-template-columns:1.06fr .94fr; gap:clamp(28px,4vw,56px); align-items:center; }
+@media (max-width:1020px){ .hero-grid{ grid-template-columns:1fr; gap:44px; } }
+.hero h1{ font-size:clamp(42px, 6.6vw, 82px); line-height:1.02; letter-spacing:-.045em; font-weight:660; }
+.hero h1 .file{ background:linear-gradient(100deg, #fff 6%, var(--brand) 42%, var(--brand-2) 74%, var(--violet)); -webkit-background-clip:text; background-clip:text; color:transparent; background-size:210% 100%; animation:sheen 9s ease-in-out infinite; }
+@keyframes sheen{ 0%,100%{ background-position:0% 50%; } 50%{ background-position:100% 50%; } }
+.hero .kicker{
+  display:inline-flex; align-items:center; gap:9px; margin-bottom:22px;
+  font-family:var(--mono); font-size:11.5px; letter-spacing:.16em; text-transform:uppercase; color:#c9d3ee;
+  padding:7px 13px 7px 9px; border-radius:999px;
+  background:rgba(255,255,255,.045); border:1px solid var(--line);
+  box-shadow:0 0 40px -22px rgba(77,212,255,.9);
+}
+.hero .kicker i{ width:6px; height:6px; border-radius:50%; background:var(--brand-2); box-shadow:0 0 12px var(--brand-2); font-style:normal; }
+.hero .sub{ font-size:clamp(15.5px, 1.35vw, 19px); color:#b9c3dc; max-width:52ch; margin-top:22px; line-height:1.62; }
+.chips{ display:flex; flex-wrap:wrap; gap:8px; margin-top:26px; }
+.chip{
+  font-family:var(--mono); font-size:11.8px; color:#c3cde8; padding:6px 11px; border-radius:8px;
+  background:rgba(255,255,255,.04); border:1px solid var(--line); transition:.3s;
+}
+.chip:hover{ border-color:rgba(77,212,255,.4); color:#fff; box-shadow:0 0 26px -14px rgba(77,212,255,.9); }
+.cta{ display:flex; flex-wrap:wrap; gap:12px; margin-top:34px; }
+.btn{
+  display:inline-flex; align-items:center; gap:9px; cursor:pointer;
+  font-family:inherit; font-size:14px; font-weight:560; letter-spacing:.005em;
+  padding:12px 20px; border-radius:12px; border:1px solid transparent;
+  transition:transform .35s cubic-bezier(.22,1,.36,1), box-shadow .35s, background .3s, border-color .3s;
+  text-decoration:none;
+}
+.btn-primary{
+  color:#080c16;
+  background:linear-gradient(135deg, #a7ecff, #4dd4ff 46%, #b6f24a);
+  box-shadow:0 0 0 1px rgba(255,255,255,.16) inset, 0 18px 46px -20px rgba(77,212,255,.95), 0 0 40px -22px rgba(182,242,74,.9);
+}
+.btn-primary:hover{ transform:translateY(-2px); box-shadow:0 0 0 1px rgba(255,255,255,.22) inset, 0 24px 54px -18px rgba(77,212,255,1), 0 0 54px -18px rgba(182,242,74,1); }
+.btn-ghost{ color:#d6ddf2; background:rgba(255,255,255,.045); border-color:var(--line-strong); }
+.btn-ghost:hover{ transform:translateY(-2px); background:rgba(255,255,255,.08); border-color:rgba(77,212,255,.42); box-shadow:0 0 42px -22px rgba(77,212,255,.9); }
+
+/* hero visual */
+.hero-vis{ position:relative; perspective:1200px; }
+.verdict-card{
+  position:relative; border-radius:22px; padding:calc(26px * var(--sp));
+  background:linear-gradient(165deg, rgba(20,26,42,.92), rgba(9,12,20,.92));
+  border:1px solid rgba(255,255,255,.1);
+  box-shadow:0 1px 0 rgba(255,255,255,.09) inset, 0 60px 120px -60px rgba(0,0,0,1), 0 0 90px -50px rgba(77,212,255,.85);
+  transform-style:preserve-3d;
+  transition:transform .35s ease-out;
+  animation:floaty 9s ease-in-out infinite;
+}
+@keyframes floaty{ 0%,100%{ translate:0 0; } 50%{ translate:0 -10px; } }
+.verdict-card .vc-head{ display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:18px; }
+.verdict-card .vc-head span{ font-family:var(--mono); font-size:11px; letter-spacing:.16em; text-transform:uppercase; color:var(--dim); }
+.vrow{
+  display:grid; grid-template-columns:92px 1fr auto; align-items:center; gap:12px;
+  padding:12px 12px; border-radius:11px; margin-bottom:8px;
+  background:rgba(255,255,255,.028); border:1px solid rgba(255,255,255,.06);
+  transition:transform .4s cubic-bezier(.22,1,.36,1), background .4s, border-color .4s;
+}
+.vrow:hover{ transform:translateX(4px); background:rgba(255,255,255,.05); }
+.vrow .k{ font-family:var(--mono); font-size:12px; color:#dbe3f7; white-space:nowrap; }
+.vrow .v{ font-size:13px; color:var(--muted); letter-spacing:-.005em; }
+.vrow .dotmark{ width:8px; height:8px; border-radius:50%; box-shadow:0 0 14px currentColor; }
+.vrow.p{ color:var(--brand-2); } .vrow.p .k{ color:#b9f5e9; }
+.vrow.c{ color:var(--brand); }
+.vrow.one{ color:var(--violet); }
+.vrow.err{ color:var(--amber); }
+.vrow.err .v{ color:#ffcf9e; }
+.vrow.err{ box-shadow:0 0 34px -22px rgba(255,176,102,.9); }
+.orbit{
+  position:absolute; inset:-38px; border-radius:50%;
+  border:1px dashed rgba(77,212,255,.16);
+  animation:spin 46s linear infinite; pointer-events:none;
+}
+.orbit::after{ content:""; position:absolute; top:-3px; left:50%; width:6px; height:6px; border-radius:50%; background:var(--brand-2); box-shadow:0 0 16px var(--brand-2); }
+@keyframes spin{ to{ transform:rotate(360deg); } }
+.scrollcue{ display:flex; align-items:center; gap:10px; margin-top:calc(52px * var(--sp)); color:var(--dim); font-family:var(--mono); font-size:11px; letter-spacing:.18em; text-transform:uppercase; }
+.scrollcue .bar{ width:52px; height:1px; background:linear-gradient(90deg, var(--brand), transparent); position:relative; overflow:hidden; }
+.scrollcue .bar::after{ content:""; position:absolute; inset:0; background:var(--brand-2); animation:sweep 2.6s ease-in-out infinite; }
+@keyframes sweep{ 0%{ transform:translateX(-100%); } 60%,100%{ transform:translateX(100%); } }
+
+/* ---------- prose blocks ---------- */
+.prose{ max-width:74ch; }
+.prose h3{ margin-top:calc(26px * var(--sp)); }
+.prose ul{ padding-left:1.1em; }
+.note{
+  margin:calc(18px * var(--sp)) 0 0; padding:14px 16px; border-radius:12px;
+  background:rgba(77,212,255,.07); border:1px solid rgba(77,212,255,.2);
+  color:#c8d3f0; font-size:14.5px;
+}
+.note.warn{ background:rgba(255,176,102,.075); border-color:rgba(255,176,102,.26); color:#ffd8b4; }
+.note.ok{ background:rgba(110,231,183,.06); border-color:rgba(110,231,183,.24); color:#c4f5e2; }
+.note b{ color:#fff; }
+
+/* ---------- code ---------- */
+.code{
+  position:relative; border-radius:14px; overflow:hidden;
+  background:linear-gradient(180deg, #080b13, #060910);
+  border:1px solid rgba(255,255,255,.085);
+  box-shadow:0 1px 0 rgba(255,255,255,.05) inset, 0 34px 70px -46px #000;
+  font-family:var(--mono); font-size:13px; line-height:1.72;
+}
+.code .cb{
+  display:flex; align-items:center; justify-content:space-between; gap:12px;
+  padding:9px 14px; border-bottom:1px solid rgba(255,255,255,.07);
+  background:rgba(255,255,255,.022);
+}
+.code .cb .fname{ font-size:11.5px; color:#a9b4cd; letter-spacing:.02em; display:flex; align-items:center; gap:8px; }
+.code .cb .fname i{ width:7px; height:7px; border-radius:50%; background:var(--brand); box-shadow:0 0 12px var(--brand); font-style:normal; }
+.code pre{ margin:0; padding:16px 18px; overflow-x:auto; color:#cfd8ee; }
+.code pre::-webkit-scrollbar{ height:8px; }
+.code pre::-webkit-scrollbar-thumb{ background:rgba(255,255,255,.14); border-radius:99px; }
+.tok-k{ color:#9aa9ff; } .tok-t{ color:#b6f24a; } .tok-s{ color:#b6f24a; } .tok-c{ color:#5f6b86; font-style:italic; } .tok-n{ color:#f2a8c0; } .tok-m{ color:#c6b3ff; }
+.ln{ display:inline-block; width:2.1em; color:#3d475f; user-select:none; text-align:right; margin-right:14px; }
+.src-note{ font-size:13px; color:var(--dim); margin-top:12px; }
+
+/* inline code */
+code.inl{
+  font-family:var(--mono); font-size:.88em; color:#d7e0f6;
+  background:rgba(255,255,255,.062); border:1px solid rgba(255,255,255,.085);
+  padding:1.5px 6px; border-radius:6px; white-space:nowrap;
+}
+
+/* ---------- tables ---------- */
+.tablewrap.tight table{ min-width:0; font-size:12.9px; }
+.tablewrap.tight tbody td{ padding:11px 12px; }
+.tablewrap.tight thead th{ padding:11px 12px; font-size:10.5px; }
+.tablewrap{ overflow-x:auto; border-radius:14px; border:1px solid var(--line); background:rgba(255,255,255,.02); }
+table{ width:100%; border-collapse:collapse; font-size:14px; min-width:560px; }
+thead th{
+  text-align:left; padding:13px 16px; font-family:var(--mono); font-size:11px;
+  letter-spacing:.14em; text-transform:uppercase; color:var(--dim); font-weight:600;
+  border-bottom:1px solid var(--line); white-space:nowrap;
+}
+tbody td{ padding:13px 16px; border-bottom:1px solid rgba(255,255,255,.045); color:var(--muted); vertical-align:top; }
+tbody tr:last-child td{ border-bottom:none; }
+tbody tr{ transition:background .25s; }
+tbody tr:hover{ background:rgba(77,212,255,.055); }
+td.mono, th.mono, .mono{ font-family:var(--mono); font-size:12.6px; color:#cbd5ee; }
+.pill{ display:inline-block; padding:2px 9px; border-radius:99px; font-family:var(--mono); font-size:11.5px; border:1px solid; }
+.pill.ok{ color:#9df3d3; border-color:rgba(110,231,183,.35); background:rgba(110,231,183,.09); }
+.pill.bad{ color:#ffc79b; border-color:rgba(255,176,102,.35); background:rgba(255,176,102,.09); }
+.pill.neu{ color:#c3cffe; border-color:rgba(77,212,255,.35); background:rgba(77,212,255,.09); }
+.pill.vio{ color:#dcc7ff; border-color:rgba(183,156,255,.35); background:rgba(183,156,255,.1); }
+
+/* ---------- terminal ---------- */
+.sim{ display:grid; grid-template-columns:1.32fr .68fr; gap:calc(18px * var(--sp)); align-items:start; }
+@media (max-width:980px){ .sim{ grid-template-columns:1fr; } }
+.term{
+  border-radius:16px; overflow:hidden; border:1px solid rgba(255,255,255,.1);
+  background:linear-gradient(180deg, #070a11, #05070c);
+  box-shadow:0 1px 0 rgba(255,255,255,.06) inset, 0 50px 100px -60px #000, 0 0 80px -50px rgba(182,242,74,.6);
+}
+.term-bar{ display:flex; align-items:center; gap:10px; padding:10px 14px; border-bottom:1px solid rgba(255,255,255,.07); background:rgba(255,255,255,.024); }
+.term-bar .dots{ display:flex; gap:6px; }
+.term-bar .dots i{ width:9px; height:9px; border-radius:50%; background:#2b3246; }
+.term-bar .dots i:nth-child(1){ background:#ff6b6b55; } .term-bar .dots i:nth-child(2){ background:#ffd16655; } .term-bar .dots i:nth-child(3){ background:#6ee7b766; }
+.term-bar .tt{ font-family:var(--mono); font-size:11.5px; color:#8d99b4; letter-spacing:.03em; }
+.term-bar .live{ margin-left:auto; display:inline-flex; align-items:center; gap:6px; font-family:var(--mono); font-size:10.5px; letter-spacing:.14em; text-transform:uppercase; color:#8ff0d3; }
+.term-bar .live i{ width:6px; height:6px; border-radius:50%; background:#6ee7b7; box-shadow:0 0 12px #6ee7b7; animation:pulse-dot 2s ease-in-out infinite; }
+.term-body{
+  font-family:var(--mono); font-size:13px; line-height:1.75; padding:16px 16px 8px;
+  height:320px; overflow-y:auto; color:#cfd8ee;
+}
+.term-body::-webkit-scrollbar{ width:8px; }
+.term-body::-webkit-scrollbar-thumb{ background:rgba(255,255,255,.13); border-radius:99px; }
+.l{ animation:lineIn .32s cubic-bezier(.22,1,.36,1) both; white-space:pre-wrap; word-break:break-word; }
+@keyframes lineIn{ from{ opacity:0; transform:translateY(5px); } to{ opacity:1; transform:none; } }
+.l-prompt{ color:#a7ecff; }
+.l-in{ color:#6f7c98; }
+.l-in::before{ content:"› "; color:#4b5670; }
+.l-div{ color:#b6f24a; }
+.l-res{ color:#ffffff; font-weight:600; }
+.l-err{ color:#ff9e9e; }
+.l-note{ color:#5d6a85; font-style:italic; }
+.l-sep{ color:#3f4a62; letter-spacing:.1em; margin:6px 0; }
+.caret{ display:inline-block; width:7px; height:14px; background:#a7ecff; vertical-align:-2px; animation:blink 1.05s steps(1) infinite; }
+@keyframes blink{ 50%{ opacity:0; } }
+.term-form{ display:flex; align-items:center; gap:10px; padding:12px 14px; border-top:1px solid rgba(255,255,255,.07); background:rgba(255,255,255,.018); }
+.term-form .pfx{ font-family:var(--mono); color:#6ee7b7; font-size:14px; }
+.term-form input{
+  flex:1; min-width:0; background:transparent; border:none; outline:none;
+  font-family:var(--mono); font-size:13.5px; color:#eaf0ff; padding:6px 0;
+}
+.term-form input::placeholder{ color:#4d5871; }
+.term-form button{
+  font-family:var(--mono); font-size:11.5px; letter-spacing:.1em; text-transform:uppercase;
+  padding:8px 14px; border-radius:9px; cursor:pointer; color:#08111a; border:none;
+  background:linear-gradient(135deg, #a7ecff, #b6f24a);
+  box-shadow:0 0 28px -12px rgba(77,212,255,.9); transition:.28s;
+}
+.term-form button:hover{ filter:brightness(1.08); box-shadow:0 0 34px -8px rgba(77,212,255,1); }
+.presets{ display:flex; flex-wrap:wrap; gap:7px; margin-top:14px; }
+.preset{
+  font-family:var(--mono); font-size:12px; padding:6px 11px; border-radius:8px; cursor:pointer;
+  color:#c2cdeb; background:rgba(255,255,255,.04); border:1px solid var(--line); transition:.26s;
+}
+.preset:hover{ color:#fff; border-color:rgba(77,212,255,.45); background:rgba(77,212,255,.1); box-shadow:0 0 30px -16px rgba(77,212,255,1); transform:translateY(-1px); }
+.preset small{ color:var(--dim); font-size:10px; margin-left:5px; letter-spacing:.06em; text-transform:uppercase; }
+.preset.ghost{ color:#8c97b1; }
+
+/* state panel */
+.state{ display:grid; gap:10px; }
+.stat{
+  display:flex; align-items:center; justify-content:space-between; gap:10px;
+  padding:12px 14px; border-radius:11px;
+  background:rgba(255,255,255,.03); border:1px solid rgba(255,255,255,.07);
+}
+.stat .lab{ font-family:var(--mono); font-size:11px; letter-spacing:.12em; text-transform:uppercase; color:var(--dim); }
+.stat .val{ font-family:var(--mono); font-size:15px; color:#eaf0ff; }
+.stat .val.hot{ color:#b6f24a; text-shadow:0 0 22px rgba(182,242,74,.65); }
+.stat.note-stat{ display:block; }
+.stat.note-stat .lab{ display:block; margin-bottom:5px; }
+.stat.note-stat .val{ display:block; font-size:12.5px; line-height:1.6; color:#b9c3dc; font-family:var(--mono); }
+.stat .val.warnv{ color:#ffc79b; }
+
+/* ---------- trace ---------- */
+.trace{ }
+.trace-bar{ display:flex; flex-wrap:wrap; align-items:center; gap:10px; margin-bottom:16px; }
+.tbtn{
+  font-family:var(--mono); font-size:12px; padding:8px 13px; border-radius:9px; cursor:pointer;
+  color:#cbd6f2; background:rgba(255,255,255,.045); border:1px solid var(--line); transition:.26s;
+}
+.tbtn:hover:not(:disabled){ color:#fff; border-color:rgba(77,212,255,.45); box-shadow:0 0 30px -16px rgba(77,212,255,1); }
+.tbtn:disabled{ opacity:.35; cursor:not-allowed; }
+.tbtn.primary{ background:rgba(77,212,255,.16); border-color:rgba(77,212,255,.4); color:#e8edff; }
+select{
+  font-family:var(--mono); font-size:12.5px; padding:8px 12px; border-radius:9px; cursor:pointer;
+  color:#eaf0ff; background:#0c1119; border:1px solid var(--line-strong); outline:none;
+}
+.trace-count{ margin-left:auto; font-family:var(--mono); font-size:11.5px; color:var(--dim); letter-spacing:.08em; }
+.trace-grid{ display:grid; grid-template-columns:1.15fr .85fr; gap:calc(18px * var(--sp)); align-items:start; }
+@media (max-width:980px){ .trace-grid{ grid-template-columns:1fr; } }
+.now-card{
+  border-radius:16px; padding:calc(22px * var(--sp)); position:relative; overflow:hidden;
+  background:linear-gradient(160deg, rgba(24,31,50,.85), rgba(8,11,18,.9));
+  border:1px solid rgba(77,212,255,.22);
+  box-shadow:0 1px 0 rgba(255,255,255,.07) inset, 0 40px 80px -55px #000, 0 0 70px -46px rgba(77,212,255,.9);
+}
+.now-card .stepno{ font-family:var(--mono); font-size:11px; letter-spacing:.18em; text-transform:uppercase; color:var(--brand); }
+.now-card h3{ margin:10px 0 8px; font-size:clamp(17px,1.6vw,21px); }
+.now-card .detail{ color:#b2bdd8; font-size:14.5px; margin:0; min-height:2.6em; }
+.now-card .stepno, .now-card h3, .now-card .detail{ transition:opacity .22s ease, transform .22s ease; }
+.now-card.swap .stepno, .now-card.swap h3, .now-card.swap .detail{ opacity:0; transform:translateY(-4px); }
+.vtile{ transition:border-color .35s, box-shadow .35s, background .35s; }
+.vars{ display:grid; grid-template-columns:repeat(3, minmax(0,1fr)); gap:8px; margin-top:18px; }
+.vtile{ padding:9px 11px; border-radius:10px; background:rgba(255,255,255,.035); border:1px solid rgba(255,255,255,.07); }
+.vtile .k{ font-family:var(--mono); font-size:10px; letter-spacing:.1em; text-transform:uppercase; color:var(--dim); }
+.vtile .v{ font-family:var(--mono); font-size:14px; color:#eaf0ff; margin-top:2px; }
+.vtile.changed{ border-color:rgba(182,242,74,.45); box-shadow:0 0 26px -14px rgba(182,242,74,.9); }
+.vtile.changed .v{ color:#b6f24a; }
+.tc-body{ font-family:var(--mono); font-size:12.5px; line-height:1.7; padding:14px 16px; height:250px; overflow-y:auto; color:#cfd8ee; background:linear-gradient(180deg,#070a11,#05070c); border-radius:12px; border:1px solid rgba(255,255,255,.08); }
+.tc-head{ font-family:var(--mono); font-size:10.5px; letter-spacing:.16em; text-transform:uppercase; color:var(--dim); margin-bottom:8px; }
+.rail{ display:flex; flex-wrap:wrap; gap:5px; margin-top:18px; }
+.rail button{ width:24px; height:6px; border-radius:99px; border:none; cursor:pointer; background:rgba(255,255,255,.1); padding:0; transition:.25s; }
+.rail button:hover{ background:rgba(255,255,255,.26); }
+.rail button.done{ background:rgba(77,212,255,.45); }
+.rail button.cur{ background:linear-gradient(90deg,var(--brand),var(--brand-2)); box-shadow:0 0 16px rgba(77,212,255,.85); }
+
+/* ---------- call stack ---------- */
+.stack{
+  margin-top:12px; padding:12px 14px; border-radius:12px;
+  background:rgba(255,255,255,.025); border:1px solid rgba(255,255,255,.07);
+}
+.stack .sh{ font-family:var(--mono); font-size:10.5px; letter-spacing:.16em; text-transform:uppercase; color:var(--dim); margin-bottom:9px; display:flex; justify-content:space-between; gap:10px; }
+.stack .sh b{ color:#b6f24a; font-weight:600; }
+.frame{
+  display:flex; align-items:center; gap:10px;
+  font-family:var(--mono); font-size:12px; color:#8e9ab5;
+  padding:8px 11px; border-radius:9px; margin-bottom:6px;
+  background:rgba(255,255,255,.022); border:1px solid rgba(255,255,255,.055);
+  transition:.4s cubic-bezier(.22,1,.36,1);
+}
+.frame:last-child{ margin-bottom:0; }
+.frame .name{ flex:0 0 auto; }
+.frame .meta{ font-size:10.5px; letter-spacing:.04em; color:#535e77; margin-left:auto; text-align:right; }
+.frame.active{
+  color:#eef3ff; border-color:rgba(77,212,255,.42);
+  background:rgba(77,212,255,.1);
+  box-shadow:0 0 34px -22px rgba(77,212,255,1), inset 0 0 0 1px rgba(77,212,255,.08);
+  transform:translateX(4px);
+}
+.frame.active .meta{ color:#a7ecff; }
+.frame.active::before{
+  content:""; width:6px; height:6px; border-radius:50%; margin-right:2px;
+  background:var(--brand-2); box-shadow:0 0 12px var(--brand-2);
+}
+.frame.active{ padding-left:9px; }
+.frame{ padding-left:11px; }
+
+/* ---------- flow ---------- */
+.flow{ display:grid; gap:10px; margin-top:6px; }
+.fnode{
+  display:grid; grid-template-columns:auto 1fr; gap:14px; align-items:start;
+  padding:14px 16px; border-radius:12px;
+  background:rgba(255,255,255,.03); border:1px solid var(--line);
+  transition:.35s; position:relative;
+}
+.fnode:hover{ border-color:rgba(77,212,255,.34); background:rgba(77,212,255,.055); }
+.fnode .cond{ font-family:var(--mono); font-size:12.5px; color:#dfe6f8; padding-top:1px; white-space:nowrap; }
+.fnode .act{ font-size:14px; color:var(--muted); }
+.fnode.key{ border-color:rgba(182,242,74,.3); box-shadow:0 0 40px -30px rgba(182,242,74,.9); }
+.fnode.bad{ border-color:rgba(255,176,102,.3); }
+.arrow{ text-align:center; color:#39445c; font-size:13px; line-height:1; }
+
+/* ---------- takeaways / challenge ---------- */
+.challenge{ border-radius:16px; padding:calc(22px * var(--sp)); background:linear-gradient(150deg, rgba(77,212,255,.1), rgba(182,242,74,.05)); border:1px solid rgba(77,212,255,.24); }
+.challenge h3{ margin-bottom:8px; }
+.reveal-btn{ margin-top:12px; }
+.answer{ display:none; margin-top:14px; padding:14px 16px; border-radius:11px; background:rgba(5,7,13,.6); border:1px solid rgba(255,255,255,.09); color:#c6d1ec; font-size:14.2px; }
+.answer.open{ display:block; animation:lineIn .4s cubic-bezier(.22,1,.36,1) both; }
+
+/* ---------- source ---------- */
+.src-wrap{ position:relative; }
+.copy-btn{
+  font-family:var(--mono); font-size:11px; letter-spacing:.1em; text-transform:uppercase; cursor:pointer;
+  padding:6px 11px; border-radius:7px; color:#cfd8ee; background:rgba(255,255,255,.06);
+  border:1px solid var(--line-strong); transition:.26s;
+}
+.copy-btn:hover{ color:#fff; border-color:rgba(77,212,255,.5); box-shadow:0 0 26px -14px rgba(77,212,255,1); }
+.copy-btn.ok{ color:#8ff0d3; border-color:rgba(110,231,183,.5); }
+
+/* ---------- complexity ---------- */
+.bars{ display:grid; gap:10px; margin-top:8px; }
+.barrow{ display:grid; grid-template-columns:96px 1fr 118px; gap:12px; align-items:center; font-family:var(--mono); font-size:12px; color:#b6c1da; }
+.bartrack{ height:8px; border-radius:99px; background:rgba(255,255,255,.06); overflow:hidden; }
+.barfill{ height:100%; width:0; border-radius:99px; background:linear-gradient(90deg, var(--brand), var(--brand-2)); box-shadow:0 0 24px -6px rgba(77,212,255,.85); transition:width 1.1s cubic-bezier(.22,1,.36,1); }
+.barrow .ops{ color:var(--dim); text-align:right; font-size:11.5px; }
+
+/* ---------- dock (collapsed by default: never covers the page) ---------- */
+.dock{
+  position:fixed; left:50%; bottom:16px; z-index:70;
+  transform:translateX(-50%);
+  display:flex; flex-direction:column; align-items:flex-end; gap:8px;
+  transition:opacity .55s ease;
+}
+.dock.idle{ opacity:.6; }
+.dock.idle:hover, .dock.panel-open{ opacity:1; }
+.dock-toggle{
+  display:flex; align-items:center; gap:9px; cursor:pointer;
+  font-family:var(--mono); font-size:11px; letter-spacing:.08em; text-transform:uppercase;
+  padding:8px 13px; border-radius:999px; color:#c3cde8;
+  background:rgba(9,12,20,.87);
+  backdrop-filter:blur(14px) saturate(150%); -webkit-backdrop-filter:blur(14px) saturate(150%);
+  border:1px solid rgba(255,255,255,.11);
+  box-shadow:0 18px 44px -26px #000, 0 0 34px -24px rgba(77,212,255,.9);
+  transition:color .28s, border-color .28s, box-shadow .3s, transform .3s;
+}
+.dock-toggle:hover{ color:#fff; border-color:rgba(77,212,255,.5); box-shadow:0 18px 44px -26px #000, 0 0 40px -18px rgba(77,212,255,.95); }
+.dock-toggle .g{ width:6px; height:6px; border-radius:50%; background:var(--brand-2); box-shadow:0 0 10px var(--brand-2); animation:pulse-dot 2.8s ease-in-out infinite; }
+.dock-toggle .chev{ transition:transform .38s cubic-bezier(.22,1,.36,1); display:block; }
+.dock.panel-open .dock-toggle .chev{ transform:rotate(180deg); }
+.dock-panel{
+  display:flex; align-items:center; gap:14px; flex-wrap:wrap; justify-content:flex-end;
+  max-height:0; opacity:0; padding:0 12px; overflow:hidden;
+  border-radius:14px; background:rgba(9,12,20,.9);
+  border:1px solid rgba(255,255,255,.1);
+  backdrop-filter:blur(16px) saturate(150%); -webkit-backdrop-filter:blur(16px) saturate(150%);
+  box-shadow:0 26px 56px -30px #000, 0 0 50px -34px rgba(77,212,255,.9);
+  transform:translateY(10px) scale(.98); transform-origin:100% 100%; pointer-events:none;
+  transition:max-height .42s cubic-bezier(.22,1,.36,1), opacity .3s ease, transform .42s cubic-bezier(.22,1,.36,1), padding .3s;
+}
+.dock.panel-open .dock-panel{ max-height:120px; opacity:1; padding:10px 12px; transform:none; pointer-events:auto; }
+.dock .grp{ display:flex; align-items:center; gap:8px; }
+.dock .glab{ font-family:var(--mono); font-size:10px; letter-spacing:.16em; text-transform:uppercase; color:var(--dim); }
+.seg{ display:flex; gap:2px; padding:2px; border-radius:9px; background:rgba(255,255,255,.05); border:1px solid rgba(255,255,255,.07); }
+.seg button{
+  font-family:var(--mono); font-size:11px; letter-spacing:.02em; padding:5px 9px; border-radius:7px;
+  border:none; background:transparent; color:#9aa5bd; cursor:pointer; transition:.26s;
+}
+.seg button:hover{ color:#e6ecff; }
+.seg button.on{ color:#0a0f18; background:linear-gradient(135deg,#a7ecff,#b6f24a); box-shadow:0 0 22px -10px rgba(77,212,255,1); }
+@media (max-width:720px){ .dock{ bottom:12px; } .dock .glab{ display:none; } .seg button{ font-size:10px; padding:5px 7px; } .dock-toggle{ font-size:10px; padding:7px 11px; } }
+
+/* ---------- footer ---------- */
+footer{ position:relative; z-index:1; border-top:1px solid rgba(255,255,255,.06); padding:44px 0 96px; }
+.foot-in{ display:flex; flex-wrap:wrap; gap:18px; justify-content:space-between; align-items:center; }
+.foot-in p{ margin:0; font-size:13px; color:var(--dim); }
+.foot-in .mono{ font-size:11.5px; color:#4f5a73; }
+
+@media (prefers-reduced-motion: reduce){
+  *, *::before, *::after{ animation-duration:.001ms !important; animation-iteration-count:1 !important; transition-duration:.001ms !important; }
+  html{ scroll-behavior:auto; }
+  .reveal{ opacity:1; transform:none; filter:none; }
+}
+
+/* ---- narrow-screen safety: long words must never widen a grid column ---- */
+.hero-copy, .hero-vis, .hero-grid > *, .sim > *, .trace-grid > *, .grid > *, .wrap > *, .card{ min-width:0; }
+.hero h1{ font-size:clamp(30px, 6.4vw, 66px); overflow-wrap:anywhere; letter-spacing:-.04em; }
+.hero h1 .file{ display:inline-block; }
+.chip{ max-width:100%; overflow-wrap:anywhere; }
+.code pre, .stream, .term-body, .tc-body{ max-width:100%; }
+.brand{ overflow:hidden; text-overflow:ellipsis; }
+@media (max-width:520px){
+  .wrap{ width:calc(100% - 28px); }
+  .chips{ gap:6px; }
+  .chip{ font-size:11px; }
+  .section{ padding:calc(62px * var(--sp)) 0; }
+}
+
+
+@media (max-width:1020px){
+  .orbit{ display:none; }
+  .hero-vis{ overflow:hidden; }
+  .hero-grid{ gap:34px; }
+}
+@media (max-width:520px){
+  .verdict-card{ padding:18px; }
+  .rmap{ gap:5px; }
+  .rtile{ width:32px; height:32px; font-size:11.5px; border-radius:9px; }
+}
+
+
+@media (max-width:520px){
+  .brand{ flex:0 0 auto; max-width:34vw; }
+  .nav-in{ gap:6px; }
+  .nav-links a{ padding:6px 8px; font-size:12px; }
+}
+
+
+/* ================= Bin2dec components ================= */
+.bits{ display:flex; flex-direction:column; gap:6px; }
+.bitrow{
+  display:grid; grid-template-columns:30px 1fr auto; gap:10px; align-items:center;
+  padding:7px 10px; border-radius:10px;
+  background:rgba(255,255,255,.028); border:1px solid rgba(255,255,255,.07);
+  opacity:0; transform:translateY(7px);
+}
+.bitrow.in{ opacity:1; transform:none; transition:opacity .45s ease, transform .45s cubic-bezier(.22,1,.36,1), border-color .3s, background .3s; transition-delay:var(--bd,0ms); }
+.bitrow.hot{ border-color:rgba(77,212,255,.45); background:rgba(77,212,255,.08); }
+.bitrow.bad{ border-color:rgba(248,113,113,.45); background:rgba(248,113,113,.08); }
+.bitrow .digit{
+  width:28px; height:28px; display:grid; place-items:center; border-radius:7px;
+  font-family:var(--mono); font-size:14px; font-weight:700;
+}
+.digit.one{ background:linear-gradient(140deg,#d9fca8,#4dd4ff); color:#062515; box-shadow:0 0 22px -10px rgba(77,212,255,1); }
+.digit.zero{ background:rgba(255,255,255,.05); color:#7c879e; border:1px solid rgba(255,255,255,.1); font-weight:500; }
+.digit.bad{ background:linear-gradient(140deg,#fecaca,#f87171); color:#2a0b0b; }
+.bitrow .expr{ font-family:var(--mono); font-size:12px; color:#c6d0e6; line-height:1.35; }
+.bitrow .expr i{ font-style:normal; color:#8b96ae; }
+.bitrow .val{ font-family:var(--mono); font-size:13.5px; color:#b6f24a; text-align:right; white-space:nowrap; }
+.bitrow .val.small{ font-size:11.5px; color:#6f7a92; }
+
+.odo{
+  display:flex; align-items:baseline; gap:14px; padding:14px 16px; border-radius:12px;
+  background:linear-gradient(120deg, rgba(77,212,255,.1), rgba(182,242,74,.06));
+  border:1px solid rgba(77,212,255,.24);
+}
+.odo .lab{ font-family:var(--mono); font-size:10.5px; letter-spacing:.16em; text-transform:uppercase; color:#7f97a3; }
+.odo .num{
+  font-family:var(--mono); font-size:clamp(28px,4vw,42px); letter-spacing:-.02em; line-height:1;
+  background:linear-gradient(100deg,#d9fca8,#4dd4ff 45%,#b6f24a);
+  -webkit-background-clip:text; background-clip:text; color:transparent;
+}
+.odo .eq{ margin-left:auto; font-family:var(--mono); font-size:12px; color:#8b96ae; }
+
+/* recursion frames */
+.frames{ display:grid; gap:6px; margin-top:8px; }
+.mframe{
+  display:flex; align-items:center; gap:10px; padding:8px 11px; border-radius:9px;
+  font-family:var(--mono); font-size:11.8px; color:#98a3ba;
+  background:rgba(255,255,255,.025); border:1px solid rgba(255,255,255,.06);
+  animation:mframeIn .4s cubic-bezier(.22,1,.36,1) both;
+}
+@keyframes mframeIn{ from{ opacity:0; transform:translateX(-8px);} to{opacity:1; transform:none;} }
+.mframe .tag2{ font-size:9.5px; letter-spacing:.12em; text-transform:uppercase; color:#7b8698; border:1px solid rgba(255,255,255,.12); border-radius:5px; padding:1px 5px; }
+.mframe.deep{ border-color:rgba(248,113,113,.4); color:#ffc9c9; background:rgba(248,113,113,.08); }
+.mframe.deep .tag2{ color:#ffb3b3; border-color:rgba(248,113,113,.4); }
+.mframe .mv{ margin-left:auto; color:#c6d0e6; }
+
+/* warning / callout strip */
+.strip-warn{
+  display:flex; gap:10px; align-items:flex-start; padding:11px 13px; border-radius:10px; margin-top:10px;
+  background:rgba(248,113,113,.08); border:1px solid rgba(248,113,113,.28); color:#ffc9c9; font-size:13px;
+}
+.strip-warn b{ color:#fff; }
+
+/* weight chips in hero */
+.weights{ display:flex; gap:8px; margin-top:2px; }
+.wchip{ font-family:var(--mono); font-size:10.5px; color:#8b96ae; width:40px; text-align:center; padding:3px 0; border-radius:6px; background:rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.07); }
+.wchip.on{ color:#062515; background:linear-gradient(140deg,#d9fca8,#4dd4ff); border-color:transparent; font-weight:700; }
+
+/* bit ribbon for hero */
+.ribbon{ display:flex; align-items:center; gap:8px; justify-content:center; margin:6px 0 4px; flex-wrap:wrap; }
+.ribbon .cell{
+  width:40px; height:52px; border-radius:10px; display:grid; place-items:center;
+  font-family:var(--mono); font-size:19px; font-weight:700;
+  animation:cellIn .55s cubic-bezier(.22,1,.36,1) both; animation-delay:var(--cd,0ms);
+}
+@keyframes cellIn{ from{ opacity:0; transform:translateY(10px) rotateX(-40deg);} to{opacity:1; transform:none;} }
+.ribbon .cell.on{ color:#062515; background:linear-gradient(160deg,#d9fca8,#4dd4ff); box-shadow:0 0 26px -10px rgba(77,212,255,1), inset 0 1px 0 rgba(255,255,255,.6); }
+.ribbon .cell.off{ color:#5f6a80; background:rgba(255,255,255,.035); border:1px solid rgba(255,255,255,.09); }
+.ribbon .op{ color:#4b5670; font-family:var(--mono); font-size:13px; }
+.ribbon .res{
+  font-family:var(--mono); font-size:22px; color:#e9eefc; padding-left:10px; border-left:1px solid rgba(255,255,255,.12);
+}
+
+/* --- shared text blocks used on this page --- */
+.stream{
+  font-family:var(--mono); font-size:13px; color:#e8eefc; padding:12px 14px; border-radius:11px;
+  background:rgba(255,255,255,.03); border:1px solid rgba(255,255,255,.08);
+  white-space:pre-wrap; word-break:break-word; line-height:1.75;
+}
+.meter{ display:grid; grid-template-columns:repeat(auto-fit,minmax(110px,1fr)); gap:9px; margin-top:6px; }
+.meter .m{ padding:11px 12px; border-radius:11px; background:rgba(255,255,255,.03); border:1px solid rgba(255,255,255,.07); }
+.meter .m .k{ font-family:var(--mono); font-size:10px; letter-spacing:.13em; text-transform:uppercase; color:var(--dim); }
+.meter .m .v{ font-family:var(--mono); font-size:16px; color:#eef3ff; margin-top:3px; }
+.meter .m .v.hi{ color:#b6f24a; text-shadow:0 0 22px rgba(77,212,255,.55); }
+.delta{ display:grid; gap:9px; margin-top:4px; }
+.drow{ display:grid; grid-template-columns:120px 1fr; gap:12px; align-items:start; font-size:13.6px; }
+.drow .dk{ font-family:var(--mono); font-size:11px; letter-spacing:.1em; text-transform:uppercase; color:var(--dim); padding-top:3px; }
+.drow .dv{ color:var(--muted); }
+.drow .dv b{ color:#dceff5; }
+@media (max-width:560px){ .drow{ grid-template-columns:1fr; gap:2px; } }
+
+
+/* ================= pattern-chapter components ================= */
+.lab{ display:grid; grid-template-columns:1.45fr .55fr; gap:calc(18px * var(--sp)); align-items:start; }
+@media (max-width:980px){ .lab{ grid-template-columns:1fr; } }
+
+.canvas-wrap{
+  border-radius:16px; padding:calc(18px * var(--sp)); position:relative; overflow:hidden;
+  background:
+    linear-gradient(180deg, rgba(10,20,30,.9), rgba(6,12,19,.94));
+  border:1px solid rgba(77,212,255,.18);
+  box-shadow:0 1px 0 rgba(255,255,255,.06) inset, 0 50px 90px -60px #000, 0 0 80px -50px rgba(77,212,255,.8);
+}
+.canvas-wrap::before{
+  content:""; position:absolute; inset:0; pointer-events:none;
+  background-image:
+    linear-gradient(to right, rgba(77,212,255,.07) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(77,212,255,.07) 1px, transparent 1px);
+  background-size:18px 18px; opacity:.55;
+}
+.canvas-scroll{ position:relative; overflow-x:auto; padding-bottom:6px; }
+.canvas-scroll::-webkit-scrollbar{ height:8px; }
+.canvas-scroll::-webkit-scrollbar-thumb{ background:rgba(77,212,255,.3); border-radius:99px; }
+
+.canvas{
+  display:grid; gap:2px; position:relative;
+  grid-template-columns:34px repeat(var(--cols, 15), 18px);
+  width:max-content;
+}
+.canvas .rx{
+  font-family:var(--mono); font-size:10px; color:#4a6270; display:grid; place-items:center;
+  height:18px;
+}
+.cell{
+  width:18px; height:18px; border-radius:4px; position:relative;
+  background:rgba(255,255,255,.028);
+  transition:background .3s, box-shadow .3s, transform .25s, opacity .3s;
+}
+.cell.star{
+  background:linear-gradient(140deg,#d9fca8,#b6f24a);
+  box-shadow:0 0 14px -6px rgba(182,242,74,.95);
+}
+.cell.spine{ background:linear-gradient(140deg,#a7ecff,#4dd4ff); box-shadow:0 0 14px -6px rgba(77,212,255,.95); }
+.cell.mid{ background:linear-gradient(140deg,#c7b6ff,#8b6bff); box-shadow:0 0 16px -6px rgba(139,107,255,.95); }
+.cell.rel{ background:rgba(255,255,255,.05); }
+.cell.ghost{ outline:1px dashed rgba(77,212,255,.55); outline-offset:1px; }
+.cell:hover{ transform:scale(1.18); z-index:2; }
+.cell.pulse{ animation:cellPulse .5s cubic-bezier(.22,1,.36,1) both; }
+@keyframes cellPulse{ from{ transform:scale(.6); opacity:.2; } to{ transform:none; opacity:1; } }
+.cell .dot::after{
+  content:"·"; position:absolute; inset:0; display:grid; place-items:center;
+  font-family:var(--mono); font-size:13px; color:#31414f;
+}
+.cell.showws.spacer::after{
+  content:"·"; position:absolute; inset:0; display:grid; place-items:center;
+  font-family:var(--mono); font-size:12px; color:rgba(120,160,180,.5);
+}
+.ruler{ display:grid; grid-template-columns:34px repeat(var(--cols, 15), 18px); gap:2px; margin-bottom:4px; width:max-content; }
+.ruler span{ font-family:var(--mono); font-size:9px; color:#3f5866; text-align:center; height:12px; line-height:12px; }
+.ruler span.mark{ color:#7dd3fc; }
+
+.ctl{ display:flex; flex-wrap:wrap; gap:14px; align-items:center; margin-top:14px; }
+.ctl .glab2{ font-family:var(--mono); font-size:10px; letter-spacing:.14em; text-transform:uppercase; color:var(--dim); }
+.sw{
+  display:inline-flex; align-items:center; gap:8px; cursor:pointer; user-select:none;
+  font-family:var(--mono); font-size:11.5px; color:#9fb3c0;
+  padding:6px 10px; border-radius:8px; background:rgba(255,255,255,.03); border:1px solid rgba(255,255,255,.08);
+  transition:.28s;
+}
+.sw:hover{ border-color:rgba(77,212,255,.4); color:#dff6ff; }
+.sw .knob{ width:26px; height:14px; border-radius:99px; background:rgba(255,255,255,.12); position:relative; transition:.28s; }
+.sw .knob::after{
+  content:""; position:absolute; top:2px; left:2px; width:10px; height:10px; border-radius:50%;
+  background:#8fa3b0; transition:.28s;
+}
+.sw.on{ color:#e8fbff; border-color:rgba(77,212,255,.45); background:rgba(77,212,255,.08); }
+.sw.on .knob{ background:rgba(77,212,255,.35); }
+.sw.on .knob::after{ left:14px; background:#b6f24a; box-shadow:0 0 10px #b6f24a; }
+
+.nsizes{ display:flex; flex-wrap:wrap; gap:6px; margin-top:12px; }
+.nbtn{
+  font-family:var(--mono); font-size:12px; width:34px; height:30px; border-radius:8px; cursor:pointer;
+  color:#a7bdc9; background:rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.08); transition:.24s;
+}
+.nbtn:hover{ color:#fff; border-color:rgba(77,212,255,.45); }
+.nbtn.on{ color:#04181f; background:linear-gradient(140deg,#a7ecff,#b6f24a); border-color:transparent; font-weight:700; box-shadow:0 0 22px -10px rgba(77,212,255,1); }
+.ninput{
+  font-family:var(--mono); font-size:12.5px; width:72px; padding:6px 9px; border-radius:8px;
+  color:#eaf6ff; background:#0a141c; border:1px solid rgba(255,255,255,.14); outline:none;
+}
+.ninput:focus{ border-color:rgba(77,212,255,.5); box-shadow:0 0 22px -12px rgba(77,212,255,1); }
+
+.statrow{ display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; }
+.statrow .stat{ padding:10px 12px; }
+.statrow .stat .val{ font-size:14px; }
+
+.legend2{ display:flex; flex-wrap:wrap; gap:14px; margin-top:14px; font-family:var(--mono); font-size:10.5px; color:#7e93a0; letter-spacing:.03em; }
+.legend2 span{ display:inline-flex; align-items:center; gap:6px; }
+.legend2 i{ width:11px; height:11px; border-radius:3px; display:inline-block; }
+.legend2 i.l-star{ background:linear-gradient(140deg,#d9fca8,#b6f24a); }
+.legend2 i.l-spine{ background:linear-gradient(140deg,#a7ecff,#4dd4ff); }
+.legend2 i.l-mid{ background:linear-gradient(140deg,#c7b6ff,#8b6bff); }
+.legend2 i.l-non{ background:rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.14); }
+
+pre.raw{
+  font-family:var(--mono); font-size:12.5px; line-height:1.5; margin:0; padding:14px 16px;
+  border-radius:12px; background:rgba(4,10,16,.85); border:1px solid rgba(255,255,255,.07);
+  color:#cfe6f0; overflow-x:auto; white-space:pre;
+}
+pre.raw mark{ background:rgba(182,242,74,.16); color:#e8ffd0; border-radius:3px; }
+pre.raw .sp{ color:#2f4a58; }
+
+.gallery{ display:grid; grid-template-columns:repeat(auto-fill,minmax(150px,1fr)); gap:12px; margin-top:16px; }
+.gcard{
+  padding:12px; border-radius:12px; background:rgba(255,255,255,.028); border:1px solid rgba(255,255,255,.07);
+  transition:.3s; cursor:pointer;
+}
+.gcard:hover{ border-color:rgba(77,212,255,.4); transform:translateY(-2px); background:rgba(77,212,255,.06); }
+.gcard .gh{ display:flex; align-items:baseline; justify-content:space-between; gap:8px; margin-bottom:8px; }
+.gcard .gn{ font-family:var(--mono); font-size:12px; color:#dff6ff; }
+.gcard .gt{ font-family:var(--mono); font-size:9.5px; letter-spacing:.08em; text-transform:uppercase; color:#7e93a0; }
+.gcard .gt.ok{ color:#b6f24a; } .gcard .gt.warn{ color:#ffb066; } .gcard .gt.bad{ color:#ff9e9e; }
+.gmini{ display:grid; gap:1px; }
+.gmini i{ display:block; border-radius:1px; background:rgba(255,255,255,.05); }
+.gmini i.s{ background:rgba(182,242,74,.85); }
+
+.condgrid{ display:grid; gap:6px; margin-top:10px; }
+.condrow{
+  display:grid; grid-template-columns:52px repeat(4, minmax(0,1fr)) 70px; gap:6px; align-items:center;
+  font-family:var(--mono); font-size:11px; color:#8fa7b0;
+}
+.condrow.head{ color:#5f7784; font-size:9.5px; letter-spacing:.1em; text-transform:uppercase; }
+.condrow .rv{
+  padding:5px 6px; border-radius:6px; text-align:center;
+  background:rgba(255,255,255,.03); border:1px solid rgba(255,255,255,.06);
+}
+.condrow .rv.t{ color:#04181f; background:linear-gradient(140deg,#d9fca8,#b6f24a); border-color:transparent; font-weight:700; }
+.condrow .rv.f{ color:#455c69; }
+.condrow .res{ text-align:right; color:#a9c3cf; }
+.condrow .res .all{ color:#b6f24a; }
+@media (max-width:640px){
+  .condrow{ grid-template-columns:40px repeat(4, minmax(0,1fr)); font-size:10px; }
+  .condrow .res{ display:none; }
+}
+
+/* ================= EKD (completed signature) components ================= */
+.cell.zone-e{ background:linear-gradient(140deg,#d9fca8,#b6f24a); box-shadow:0 0 14px -6px rgba(182,242,74,.95); }
+.cell.zone-k{ background:linear-gradient(140deg,#a7ecff,#4dd4ff); box-shadow:0 0 14px -6px rgba(77,212,255,.95); }
+.cell.zone-d{ background:linear-gradient(140deg,#c7b6ff,#8b6bff); box-shadow:0 0 14px -6px rgba(139,107,255,.95); }
+.cell.colgap{ background:rgba(255,255,255,.055); }
+.cell.dead{ background:rgba(255,90,90,.14); outline:1px dashed rgba(255,120,120,.7); outline-offset:1px; }
+.cell.diag{ box-shadow:0 0 0 2px rgba(255,255,255,.75) inset, 0 0 18px -6px rgba(255,255,255,.8); }
+.cell.dim{ opacity:.32; }
+
+.zonebar{
+  display:grid; grid-template-columns:34px 1fr; gap:2px; margin-bottom:6px; width:max-content;
+}
+.zbl{
+  display:grid; place-items:center; height:20px; border-radius:6px;
+  font-family:var(--mono); font-size:10.5px; letter-spacing:.1em; text-transform:uppercase;
+}
+.zbl.e{ background:rgba(182,242,74,.14); border:1px solid rgba(182,242,74,.4); color:#d9fca8; }
+.zbl.k{ background:rgba(77,212,255,.14); border:1px solid rgba(77,212,255,.4); color:#a7ecff; }
+.zbl.d{ background:rgba(139,107,255,.16); border:1px solid rgba(139,107,255,.45); color:#c7b6ff; }
+.zbl.gap{ background:rgba(255,255,255,.04); border:1px dashed rgba(255,255,255,.16); color:#6f8695; }
+.zbl.dead{ background:rgba(255,90,90,.12); border:1px dashed rgba(255,120,120,.6); color:#ffb3b3; }
+
+.legend3{ display:flex; flex-wrap:wrap; gap:14px; margin-top:14px; font-family:var(--mono); font-size:10.5px; color:#7e93a0; }
+.legend3 span{ display:inline-flex; align-items:center; gap:6px; }
+.legend3 i{ width:11px; height:11px; border-radius:3px; display:inline-block; }
+.legend3 i.e{ background:linear-gradient(140deg,#d9fca8,#b6f24a); }
+.legend3 i.k{ background:linear-gradient(140deg,#a7ecff,#4dd4ff); }
+.legend3 i.d{ background:linear-gradient(140deg,#c7b6ff,#8b6bff); }
+.legend3 i.g{ background:rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.18); }
+.legend3 i.x{ background:rgba(255,90,90,.18); border:1px dashed rgba(255,120,120,.7); }
+
+.nameplate{
+  display:grid; gap:4px; padding:12px 14px; border-radius:12px; margin-top:14px;
+  background:linear-gradient(120deg, rgba(77,212,255,.08), rgba(182,242,74,.05));
+  border:1px solid rgba(77,212,255,.22);
+  font-family:var(--mono); font-size:12px; color:#cfe6f0;
+}
+.nameplate b{ color:#eaffd6; font-weight:600; }
+
+.probe{
+  border-radius:14px; padding:14px; margin-top:12px;
+  background:rgba(255,255,255,.022); border:1px dashed rgba(255,255,255,.14);
+}
+.probe .ph{
+  display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:8px;
+  font-family:var(--mono); font-size:10.5px; letter-spacing:.12em; text-transform:uppercase; color:#8fa2ae;
+}
+.probe .ph b{ color:#ffb066; letter-spacing:.06em; }
+.probe pre{ margin:0; font-size:10.5px; line-height:1.4; color:#bfe4d0; overflow-x:auto; }
+.probe.bad pre{ color:#ffd0d0; }
+
+.rowsplit{ display:grid; grid-template-columns:1fr auto; gap:12px; align-items:center; }
+.rowsplit .txt{ font-size:13.4px; color:var(--muted); }
+
+/* ---------- narrow-viewport nav: keep every link reachable ---------- */
+@media (max-width:760px){
+  .nav-in{ gap:10px; }
+  .brand{ flex:0 0 auto; min-width:0; overflow:visible; font-size:13px; }
+  .brand .sub{ display:none; }
+  .nav-links{ flex:1 1 auto; min-width:0; overflow-x:auto; scrollbar-width:none; -webkit-overflow-scrolling:touch; padding-bottom:2px; }
+  .nav-links::-webkit-scrollbar{ display:none; height:0; }
+  .nav-links a{ white-space:nowrap; flex:0 0 auto; }
+}
+
+/* ================= The Last Signal — console components ================= */
+.hud{
+  position:relative; border-radius:16px; padding:calc(20px * var(--sp));
+  background:linear-gradient(160deg, rgba(12,20,32,.9), rgba(6,10,17,.95));
+  border:1px solid rgba(77,212,255,.18);
+  box-shadow:0 1px 0 rgba(255,255,255,.06) inset, 0 50px 90px -60px #000, 0 0 80px -50px rgba(77,212,255,.8);
+}
+.hud::before, .hud::after{
+  content:""; position:absolute; width:14px; height:14px; border:1px solid rgba(77,212,255,.5); pointer-events:none;
+}
+.hud::before{ top:9px; left:9px; border-right:0; border-bottom:0; border-radius:4px 0 0 0; }
+.hud::after{ bottom:9px; right:9px; border-left:0; border-top:0; border-radius:0 0 4px 0; }
+
+.st{
+  display:inline-flex; align-items:center; gap:7px; padding:4px 11px; border-radius:99px;
+  font-family:var(--mono); font-size:11px; letter-spacing:.1em; text-transform:uppercase; border:1px solid;
+}
+.st::before{ content:""; width:6px; height:6px; border-radius:50%; background:currentColor; box-shadow:0 0 10px currentColor; }
+.st.g{ color:#9df3d3; border-color:rgba(110,231,183,.38); background:rgba(110,231,183,.08); }
+.st.n{ color:#ffb3b3; border-color:rgba(255,120,120,.42); background:rgba(255,90,90,.08); }
+.st.a{ color:#ffd08a; border-color:rgba(255,176,102,.4); background:rgba(255,176,102,.08); }
+.st.b{ color:#a7ecff; border-color:rgba(77,212,255,.4); background:rgba(77,212,255,.08); }
+
+.phases{ display:grid; gap:8px; }
+.phase{
+  display:grid; grid-template-columns:auto 1fr; gap:13px; align-items:start;
+  padding:12px 14px; border-radius:12px; background:rgba(255,255,255,.028); border:1px solid var(--line);
+  transition:.3s;
+}
+.phase:hover{ border-color:rgba(77,212,255,.32); background:rgba(77,212,255,.05); }
+.phase .pn{
+  font-family:var(--mono); font-size:11px; color:#0a1016; background:linear-gradient(140deg,#d9fca8,#b6f24a);
+  border-radius:7px; padding:2px 8px; font-weight:600;
+}
+.phase .pt{ font-size:14px; color:#dfe6f8; }
+.phase .pd{ font-size:13.2px; color:var(--muted); margin-top:3px; }
+
+.sig{ display:grid; gap:3px; width:max-content; }
+.sig .rl{ font-family:var(--mono); font-size:9.5px; color:#4a6270; display:grid; place-items:center; height:22px; }
+.sig .rh{ font-family:var(--mono); font-size:9.5px; color:#4a6270; display:grid; place-items:center; height:13px; }
+.sig .c{
+  width:22px; height:22px; border-radius:4px; background:rgba(255,255,255,.03); position:relative;
+  transition:background .3s, box-shadow .3s, transform .22s, opacity .3s;
+}
+.sig .c.on{
+  background:linear-gradient(140deg,#d9fca8,#b6f24a);
+  box-shadow:0 0 13px -5px rgba(182,242,74,.95);
+}
+.sig .c.on.cond-a{ background:linear-gradient(140deg,#d9fca8,#b6f24a); box-shadow:0 0 13px -5px rgba(182,242,74,.95); }
+.sig .c.on.cond-b{ background:linear-gradient(140deg,#a7ecff,#4dd4ff); box-shadow:0 0 13px -5px rgba(77,212,255,.95); }
+.sig .c.on.cond-c{ background:linear-gradient(140deg,#ffd9a8,#ffb066); box-shadow:0 0 13px -5px rgba(255,176,102,.95); }
+.sig .c.on.cond-d{ background:linear-gradient(140deg,#dcc7ff,#9d7bff); box-shadow:0 0 13px -5px rgba(157,123,255,.95); }
+.sig .c:hover{ transform:scale(1.14); z-index:2; }
+.sig .c.showws::after{
+  content:"·"; position:absolute; inset:0; display:grid; place-items:center;
+  font-family:var(--mono); font-size:12px; color:rgba(120,160,180,.5);
+}
+.sig .c.dead{ outline:1px dashed rgba(255,120,120,.5); outline-offset:1px; }
+.sig .c.pulse{ animation:cellPulse .45s cubic-bezier(.22,1,.36,1) both; }
+
+.dlegend{ display:flex; flex-wrap:wrap; gap:12px; margin-top:12px; font-family:var(--mono); font-size:10.5px; color:#7e93a0; }
+.dlegend span{ display:inline-flex; align-items:center; gap:6px; }
+.dlegend i{ width:11px; height:11px; border-radius:3px; display:inline-block; }
+.dlegend i.a{ background:linear-gradient(140deg,#d9fca8,#b6f24a); }
+.dlegend i.b{ background:linear-gradient(140deg,#a7ecff,#4dd4ff); }
+.dlegend i.c{ background:linear-gradient(140deg,#ffd9a8,#ffb066); }
+.dlegend i.d{ background:linear-gradient(140deg,#dcc7ff,#9d7bff); }
+.dlegend i.w{ background:rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.18); }
+
+.con{
+  font-family:var(--mono); font-size:11.5px; line-height:1.62; white-space:pre; overflow:auto;
+  background:linear-gradient(180deg,#060a11,#04070c); border:1px solid rgba(255,255,255,.08);
+  border-radius:12px; padding:14px 16px; color:#cfd8ee; max-width:100%;
+}
+.con .pm{ color:#7f93a0; }
+.con .in{ color:#ffd08a; }
+.con .er{ color:#ff9f9f; }
+.con .ok{ color:#9df3d3; }
+.con .no{ color:#ffb3b3; }
+.con .hd{ color:#a7ecff; }
+.con .art{ color:#c9f7a8; }
+.con .dim{ color:#55637a; }
+.con .cur{ display:inline-block; width:7px; background:#b6f24a; animation:blink 1s steps(1) infinite; }
+@keyframes blink{ 50%{ opacity:0; } }
+
+.digits{ display:flex; align-items:center; gap:9px; flex-wrap:wrap; }
+.dg{
+  width:40px; height:46px; border-radius:10px; display:grid; place-items:center;
+  font-family:var(--mono); font-size:19px; color:#eaf0ff;
+  background:rgba(77,212,255,.09); border:1px solid rgba(77,212,255,.32);
+}
+.dg.hot{ border-color:rgba(182,242,74,.5); background:rgba(182,242,74,.1); box-shadow:0 0 22px -12px rgba(182,242,74,.9); }
+.dop{ font-family:var(--mono); color:#5b6a80; font-size:15px; }
+.dsum{
+  font-family:var(--mono); font-size:22px; color:#d9fca8; padding:0 12px; border-left:1px solid rgba(255,255,255,.12);
+  text-shadow:0 0 26px rgba(182,242,74,.5);
+}
+
+.kvs{ display:grid; gap:2px; border-radius:11px; overflow:hidden; }
+.kvs .r{ display:grid; grid-template-columns:160px 1fr; gap:12px; padding:8px 12px; background:rgba(255,255,255,.028); font-family:var(--mono); font-size:12px; }
+.kvs .r .k{ color:#6f829a; }
+.kvs .r .v{ color:#dfe6f8; }
+.kvs .r.rev{ background:rgba(255,255,255,.02); }
+.kvs .r.rev .v{ color:#9df3d3; }
+@media (max-width:520px){ .kvs .r{ grid-template-columns:1fr; gap:2px; } }
+
+.lockband{
+  border-radius:12px; padding:12px 15px; font-family:var(--mono); font-size:11.5px; line-height:1.6;
+  background:rgba(255,90,90,.075); border:1px solid rgba(255,120,120,.34); color:#ffc9c9;
+}
+.lockband.g{ background:rgba(110,231,183,.07); border-color:rgba(110,231,183,.3); color:#c4f5e2; }
+
+.lab2{ display:grid; grid-template-columns:1.1fr .9fr; gap:calc(18px * var(--sp)); align-items:start; }
+@media (max-width:980px){ .lab2{ grid-template-columns:1fr; } }
+
+.rbtns{ display:flex; gap:6px; flex-wrap:wrap; }
+.rbtn{
+  font-family:var(--mono); font-size:12px; cursor:pointer; padding:6px 12px; border-radius:8px;
+  color:#9fb3c0; background:rgba(255,255,255,.03); border:1px solid rgba(255,255,255,.1); transition:.24s;
+}
+.rbtn:hover{ color:#e8fbff; border-color:rgba(77,212,255,.4); }
+.rbtn.on{ color:#062515; background:linear-gradient(140deg,#d9fca8,#b6f24a); border-color:transparent; box-shadow:0 0 26px -12px rgba(182,242,74,1); font-weight:600; }
+
+.codeinput{
+  font-family:var(--mono); font-size:15px; letter-spacing:.14em; color:#eaf0ff; width:110px;
+  padding:8px 10px; border-radius:9px; background:rgba(255,255,255,.04);
+  border:1px solid rgba(255,255,255,.14); outline:none; transition:.24s;
+}
+.codeinput:focus{ border-color:rgba(77,212,255,.6); box-shadow:0 0 30px -14px rgba(77,212,255,1); }
+.codeinput.bad{ border-color:rgba(255,120,120,.7); box-shadow:0 0 30px -14px rgba(255,90,90,1); }
+
+.fieldrow{ display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-top:10px; }
+.fieldrow .lab{ font-family:var(--mono); font-size:10.5px; letter-spacing:.13em; text-transform:uppercase; color:var(--dim); }
+
+.crit{ display:grid; gap:10px; }
+.crit .ci{ display:grid; grid-template-columns:auto 1fr; gap:11px; padding:11px 13px; border-radius:11px; background:rgba(255,255,255,.026); border:1px solid var(--line); }
+.crit .ci .n{ font-family:var(--mono); font-size:10.5px; color:#0a1016; background:#7dd3fc; border-radius:6px; padding:1px 7px; height:18px; }
+.crit .ci.pass .n{ background:linear-gradient(140deg,#d9fca8,#b6f24a); }
+.crit .ci .t{ font-size:13.4px; color:#cfd8ea; }
+
+@media (max-width:760px){
+  .nav-in{ gap:10px; }
+  .brand{ flex:0 0 auto; min-width:0; overflow:visible; font-size:13px; }
+  .brand .sub{ display:none; }
+  .nav-links{ flex:1 1 auto; min-width:0; overflow-x:auto; scrollbar-width:none; -webkit-overflow-scrolling:touch; padding-bottom:2px; }
+  .nav-links::-webkit-scrollbar{ display:none; height:0; }
+  .nav-links a{ white-space:nowrap; flex:0 0 auto; }
+}
+
+/* kicker wraps cleanly on narrow screens */
+.kicker{ align-items:flex-start; }
+@media (max-width:520px){ .kicker{ font-size:10px; letter-spacing:.14em; line-height:1.55; } }
+
+/* ================= Architect's Sign — zone/column components ================= */
+.colmap{ display:grid; grid-template-columns:repeat(17, minmax(0,1fr)); gap:4px; }
+.cm{
+  position:relative; cursor:pointer; border-radius:8px; padding:8px 0 7px; text-align:center;
+  font-family:var(--mono); font-size:11px; color:#93a3b8;
+  background:rgba(255,255,255,.035); border:1px solid rgba(255,255,255,.09);
+  transition:.22s;
+}
+.cm small{ display:block; font-size:8.5px; letter-spacing:.06em; margin-top:3px; color:#5d6b80; }
+.cm:hover{ transform:translateY(-2px); border-color:rgba(77,212,255,.45); color:#e8fbff; }
+.cm.e{ background:rgba(182,242,74,.1); border-color:rgba(182,242,74,.34); color:#d9fca8; }
+.cm.k{ background:rgba(77,212,255,.1); border-color:rgba(77,212,255,.34); color:#a7ecff; }
+.cm.d{ background:rgba(157,123,255,.12); border-color:rgba(157,123,255,.36); color:#dcc7ff; }
+.cm.gap{ background:rgba(255,255,255,.05); border-style:dashed; }
+.cm.dead{ background:rgba(255,90,90,.1); border:1px dashed rgba(255,120,120,.65); color:#ffb3b3; }
+.cm.on{ box-shadow:0 0 0 2px rgba(255,255,255,.5) inset, 0 0 30px -14px #fff; transform:translateY(-2px); }
+@media (max-width:700px){ .colmap{ grid-template-columns:repeat(9, minmax(0,1fr)); } }
+
+.ownerface{
+  display:grid; grid-template-columns:1fr auto; gap:10px; align-items:center;
+  padding:12px 14px; border-radius:12px; background:rgba(255,255,255,.03); border:1px solid var(--line);
+}
+.ownerface .on{ font-family:var(--mono); font-size:13px; color:#eaf0ff; }
+.ownerface .oc{ font-family:var(--mono); font-size:10.5px; letter-spacing:.1em; text-transform:uppercase; color:#7e93a0; }
+.ownerface .chars{ font-family:var(--mono); font-size:12px; color:#b6f24a; }
+
+.chainlist{ display:grid; gap:6px; margin-top:10px; }
+.chr{
+  display:grid; grid-template-columns:auto 1fr auto; gap:10px; align-items:center;
+  padding:8px 11px; border-radius:9px; font-family:var(--mono); font-size:11.5px;
+  background:rgba(255,255,255,.028); border:1px solid rgba(255,255,255,.07); color:#93a3b8;
+  transition:.25s;
+}
+.chr .cond{ color:#cfd8e8; }
+.chr .tag{ font-size:9.5px; letter-spacing:.08em; text-transform:uppercase; color:#5d6b80; }
+.chr.hit{ background:rgba(182,242,74,.09); border-color:rgba(182,242,74,.38); color:#eaffd6; }
+.chr.hit .cond{ color:#eaffd6; }
+.chr.hit .tag{ color:#b6f24a; }
+.chr.skip{ opacity:.45; }
+
+.minigrid{ display:grid; grid-template-columns:auto repeat(17, 15px); gap:2px; width:max-content; }
+.minigrid .rl{ font-family:var(--mono); font-size:9px; color:#4a6270; display:grid; place-items:center; height:15px; width:14px; }
+.minigrid .cl{ font-family:var(--mono); font-size:8px; color:#41586a; display:grid; place-items:center; height:12px; }
+.minigrid .c{
+  width:15px; height:15px; border-radius:2.5px; background:rgba(255,255,255,.03);
+  transition:background .25s, box-shadow .25s, transform .2s;
+}
+.minigrid .c.s{ background:linear-gradient(140deg,#d9fca8,#b6f24a); box-shadow:0 0 9px -5px rgba(182,242,74,.95); }
+.minigrid .c.s.k{ background:linear-gradient(140deg,#a7ecff,#4dd4ff); box-shadow:0 0 9px -5px rgba(77,212,255,.95); }
+.minigrid .c.s.d{ background:linear-gradient(140deg,#dcc7ff,#9d7bff); box-shadow:0 0 9px -5px rgba(157,123,255,.95); }
+.minigrid .c.dead{ outline:1px dashed rgba(255,120,120,.55); outline-offset:1px; }
+.minigrid .c.hl{ transform:scale(1.22); box-shadow:0 0 0 1.5px #fff inset; z-index:2; }
+
+.zonebar17{ display:grid; grid-template-columns:repeat(17, minmax(0,1fr)); gap:4px; margin-top:10px; }
+.zb{ height:18px; border-radius:5px; display:grid; place-items:center; font-family:var(--mono); font-size:9px; letter-spacing:.08em; }
+.zb.e{ background:rgba(182,242,74,.16); border:1px solid rgba(182,242,74,.4); color:#d9fca8; }
+.zb.k{ background:rgba(77,212,255,.16); border:1px solid rgba(77,212,255,.4); color:#a7ecff; }
+.zb.d{ background:rgba(157,123,255,.18); border:1px solid rgba(157,123,255,.42); color:#dcc7ff; }
+.zb.g{ background:rgba(255,255,255,.05); border:1px dashed rgba(255,255,255,.16); color:#6f8695; }
+.zb.x{ background:rgba(255,90,90,.12); border:1px dashed rgba(255,120,120,.65); color:#ffb3b3; }
+
+.ledger17{ display:grid; gap:3px; margin-top:10px; }
+.lrow{ display:grid; grid-template-columns:26px repeat(17, minmax(0,1fr)) 44px; gap:3px; align-items:center; }
+.lrow .rn{ font-family:var(--mono); font-size:10px; color:#4a6270; }
+.lrow .ch{
+  font-family:var(--mono); font-size:10px; text-align:center; border-radius:3px; height:17px; line-height:17px;
+  background:rgba(255,255,255,.035); color:#3f4f60;
+}
+.lrow .ch.s{ background:rgba(182,242,74,.2); color:#d9fca8; }
+.lrow .ch.s.k{ background:rgba(77,212,255,.2); color:#a7ecff; }
+.lrow .ch.s.d{ background:rgba(157,123,255,.22); color:#dcc7ff; }
+.lrow .ch.none{ background:rgba(255,90,90,.14); color:#ff9f9f; }
+.lrow .tot{ font-family:var(--mono); font-size:10px; color:#8fa7b0; text-align:right; }
+@media (max-width:820px){
+  .ledger17{ overflow-x:auto; padding-bottom:4px; }
+  .lrow{ min-width:520px; }
+}
+
+.srcline{ font-family:var(--mono); font-size:12px; line-height:1.75; padding:16px 18px; overflow-x:auto; color:#cfd8ee; }
+.srcline .tok-c{ color:#5f6b86; font-style:italic; }
+.srcline .tok-k{ color:#9aa9ff; }
+.srcline .tok-s{ color:#b6f24a; }
+.srcline .tok-n{ color:#f2a8c0; }
+.srcline .ln{ color:#39485c; display:inline-block; width:2.2em; user-select:none; }
+
+.statline{ display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
+.statline .b{
+  padding:5px 10px; border-radius:8px; font-family:var(--mono); font-size:11.5px;
+  background:rgba(255,255,255,.03); border:1px solid var(--line); color:#9fb0c4;
+}
+.statline .b b{ color:#eaf0ff; font-weight:600; }
+
+/* ---------- narrow-viewport guards for the inspector ---------- */
+.lab2 > *{ min-width:0; }
+.lab2 .hud{ min-width:0; overflow:hidden; }
+.lab2 .hud > div[style*="overflow-x"]{ max-width:100%; }
+code.inl{ overflow-wrap:anywhere; }
+@media (max-width:700px){
+  .sig, .minigrid{ max-width:100%; }
+}
+
+/* brand never collides with the links on narrow screens */
+@media (max-width:760px){
+  .nav-in{ gap:10px; }
+  .brand{ flex:0 0 auto; max-width:44vw; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:13px; }
+  .brand .sub{ display:none; }
+  .nav-links{ flex:1 1 auto; min-width:0; gap:0; }
+}
+</style>
+</head>
+<body>
+
+<div class="bg-layer" aria-hidden="true">
+  <div class="orb orb-a"></div>
+  <div class="orb orb-b"></div>
+  <div class="orb orb-c"></div>
+  <div class="grid-lines"></div>
+  <div class="noise"></div>
+  <div class="vignette"></div>
+</div>
+
+<header class="nav">
+  <div class="nav-in">
+    <div class="brand"><span class="dot"></span>The Architect's Sign<span class="sub">/ five rows, seventeen columns</span></div>
+    <nav class="nav-links">
+      <a href="#objective">Objective</a>
+      <a href="#problem">Problem</a>
+      <a href="#logic">Logic</a>
+      <a href="#concepts">Concepts</a>
+      <a href="#experiment">Inspector</a>
+      <a href="#walkthrough">Trace</a>
+      <a href="#edges">Edge cases</a>
+      <a href="#source">Source</a>
+    </nav>
+  </div>
+  <div class="progress" id="progress"></div>
+</header>
+
+<main>
+
+  <!-- ================= HERO ================= -->
+  <section class="hero" id="top">
+    <div class="wrap">
+      <div class="hero-grid">
+        <div class="hero-copy">
+          <div class="kicker"><i></i>Block letters · one grid · four zones</div>
+          <h1>The Architect's <span class="file">Sign</span></h1>
+          <p class="sub">One pair of loops, seventeen columns, three letters. The column decides which letter owns the cell; a second test inside that zone decides whether the cell is a star. Five rows, every letter five columns wide, and one column — the twelfth — that no branch claims.</p>
+          <div class="chips">
+            <span class="chip">allowedCols = 5 * 3 + 2 = 17</span>
+            <span class="chip">zones: ≤5 · 6 · 7–11 · 13–17</span>
+            <span class="chip">K arms: r+c==11, c−r==5</span>
+            <span class="chip">32 characters per row</span>
+          </div>
+          <div class="cta">
+            <a class="btn btn-primary" href="#experiment">Inspect the columns
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M3 8h9M8.5 4l4 4-4 4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </a>
+            <a class="btn btn-ghost" href="#source">Read the original source</a>
+          </div>
+          <div class="scrollcue"><span class="bar"></span>scroll to dissect</div>
+        </div>
+
+        <div class="hero-vis">
+          <div class="orbit" aria-hidden="true"></div>
+          <div class="verdict-card" id="verdictCard">
+            <div class="vc-head">
+              <span style="text-transform:none;font-size:11.5px">5 rows × 17 columns → E K D</span>
+              <span style="color:#b6f24a" id="heroStars">43 stars</span>
+            </div>
+            <div id="heroGrid" style="display:grid; place-items:center; padding:4px 0 8px"></div>
+            <div class="zonebar17" id="heroZones"></div>
+            <div style="margin-top:12px;padding-top:11px;border-top:1px solid rgba(255,255,255,.07);font-family:var(--mono);font-size:11px;color:#8fa7b0;line-height:1.8" id="heroStats">
+              85 cells tested · 16 columns print · column 12 prints nothing
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= 01 OBJECTIVE ================= -->
+  <section class="section" id="objective">
+    <div class="wrap">
+      <div class="head reveal">
+        <div class="eyebrow"><b>01</b> Program objective</div>
+        <h2>Print three initials as block letters</h2>
+        <p class="lead">Draw the letters E, K and D side by side in a fixed grid of five rows and seventeen columns, then print a banner with the name and the initials. The shape of every cell is decided by the column that owns it — and by a second test that describes that letter.</p>
+      </div>
+
+      <div class="grid g3">
+        <div class="card reveal">
+          <h3><span class="tag">purpose</span></h3>
+          <p>Produce a fixed piece of text art: a signature. Five rows are printed, each row exactly 32 characters wide, so the three letters hold their vertical alignment.</p>
+          <p>The programme reads nothing. Every number it needs — the row count, the letter width, the middle row, the position of the K's arms — is written into the source, so the output is identical on every run.</p>
+        </div>
+
+        <div class="card reveal" style="--d:120ms">
+          <h3><span class="tag">learning</span></h3>
+          <ul style="font-size:13.8px">
+            <li>splitting a grid into <em>column zones</em>, one per letter;</li>
+            <li>an <code class="inl">if / else if</code> chain that dispatches on the column;</li>
+            <li>a nested test inside each zone for that letter's own shape;</li>
+            <li>diagonals written as <code class="inl">row + col</code> and <code class="inl">col − row</code>;</li>
+            <li>one cell width, two characters, for both the star and the blank;</li>
+            <li>what a chain with no final <code class="inl">else</code> leaves behind.</li>
+          </ul>
+        </div>
+
+        <div class="card reveal" style="--d:240ms">
+          <h3><span class="tag">behaviour</span></h3>
+          <p>Two <code class="inl">println</code> calls print the banner, using <code class="inl">\n</code> escapes inside the strings. Then the double loop prints five rows, with a newline after each. A final bare <code class="inl">println()</code> closes the output with one blank line.</p>
+          <p>No prompt appears, because no input is requested.</p>
+        </div>
+      </div>
+
+      <div class="card reveal" style="margin-top:calc(18px * var(--sp))">
+        <h3 style="margin-bottom:12px"><span class="tag">structure</span> <span style="font-weight:500;color:var(--muted);font-size:15px">the source labels its own partitions</span></h3>
+        <div class="stream" style="font-size:12px;white-space:pre-wrap"><span style="color:#5f6b86">// complete grid</span>          → the two loops together
+<span style="color:#5f6b86">// inside n x (n*3)</span>       → where a cell sits: n rows by 3n columns
+<span style="color:#5f6b86">// zone - E / K / D</span>        → which letter owns this column
+<span style="color:#5f6b86">// printing E / K / D</span>      → which condition makes a star</div>
+        <p style="margin-top:14px;font-size:14px">The comments divide the body into four levels of decision: the grid, the position inside it, the owning zone, and the shape test for that zone. Reading the file top to bottom gives you those levels in order — which is also how this page is organised.</p>
+        <p class="src-note">A note on the notation: the source compares <code class="inl">outerColE &lt; 5</code>-style bounds against the number 5, while the comment calls the width <em>n</em>. In a general version n would be a variable; here n is the literal 5 wherever the code needs it, and <code class="inl">allowedCols</code> is the only place the arithmetic is written as <code class="inl">5 * 3 + 2</code>.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= 02 PROBLEM STATEMENT ================= -->
+  <section class="section" id="problem">
+    <div class="wrap">
+      <div class="head reveal">
+        <div class="eyebrow"><b>02</b> Problem statement</div>
+        <h2>The grid, stated without the code</h2>
+        <p class="lead">Five rows. Seventeen columns, of which three blocks of five carry the letters and two single columns sit between them. Every cell is printed as two characters — either a star and a space, or two spaces — so all rows share one width.</p>
+      </div>
+
+      <div class="grid g2" style="align-items:start">
+        <div class="card reveal">
+          <h3>Zones and their rules</h3>
+          <div class="tablewrap tight" style="margin-top:8px">
+            <table>
+              <thead><tr><th class="mono">cols</th><th>zone</th><th>prints "* " when</th><th>otherwise</th></tr></thead>
+              <tbody>
+                <tr><td class="mono">1 – 5</td><td>E</td><td><code class="inl">r == 1</code> or <code class="inl">r == 5</code> or <code class="inl">r == 3</code> or <code class="inl">c == 1</code></td><td class="mono">"  "</td></tr>
+                <tr><td class="mono">6</td><td>gap</td><td>never</td><td class="mono">"  "</td></tr>
+                <tr><td class="mono">7 – 11</td><td>K</td><td><code class="inl">c == 7</code> or <code class="inl">r + c == 11</code> or <code class="inl">c − r == 5</code></td><td class="mono">"  "</td></tr>
+                <tr><td class="mono">12</td><td><b>no zone</b></td><td>—</td><td class="mono">nothing</td></tr>
+                <tr><td class="mono">13 – 17</td><td>D</td><td><code class="inl">r == 1</code> or <code class="inl">r == 5</code> or <code class="inl">c == 13</code> or <code class="inl">c == 17</code></td><td class="mono">"  "</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <p style="margin-top:14px"><strong>Constraints.</strong> One row loop, one column loop, no separate passes for the letters. Every star position is derived from the row and column numbers. The blank cell must be the same width as the star cell, or the rows would not line up.</p>
+          <div class="note warn"><b>The twelfth column.</b> The K's test is <code class="inl">c &gt; 6 &amp;&amp; c &lt; 12</code> and the D's is <code class="inl">c &gt; 12 &amp;&amp; c &lt; 18</code>. Column 12 satisfies neither, and the chain has no final <code class="inl">else</code>, so that column prints zero characters instead of two. Section 05 shows exactly what that does to the line.</div>
+        </div>
+
+        <div class="card reveal" style="--d:120ms">
+          <h3>The complete output</h3>
+          <pre class="raw" id="exactOut" style="margin-top:8px;font-size:11px"></pre>
+          <div class="statline" style="margin-top:14px">
+            <span class="b">rows <b>5</b></span>
+            <span class="b">columns <b>17</b></span>
+            <span class="b">cells <b>85</b></span>
+            <span class="b">stars <b>43</b></span>
+            <span class="b">row width <b>32</b></span>
+          </div>
+          <h3 style="margin-top:20px;font-size:15px">Where the width comes from</h3>
+          <div class="stream" style="margin-top:8px;font-size:11.6px;white-space:pre-wrap">E    5 columns × 2 chars = 10
+col 6    explicitly "  "   =  2
+K    5 columns × 2 chars = 10
+col 12   no branch         =  0
+D    5 columns × 2 chars = 10
+                             ---
+                       32 characters</div>
+          <p class="src-note">Every row is 32 characters, not 34, because column 12 contributes nothing. The layout still reads correctly only because column 11 is blank on all five rows.</p>
+        </div>
+      </div>
+
+      <div class="card reveal" style="margin-top:calc(18px * var(--sp))">
+        <h3>Claim map — who owns each column</h3>
+        <div class="colmap" id="claimMap" style="margin-top:12px"></div>
+        <div style="display:flex;flex-wrap:wrap;gap:14px;margin-top:12px;font-family:var(--mono);font-size:10.5px;color:#7e93a0">
+          <span style="display:inline-flex;align-items:center;gap:6px"><i style="width:11px;height:11px;border-radius:3px;background:rgba(182,242,74,.35);display:inline-block"></i>E branch</span>
+          <span style="display:inline-flex;align-items:center;gap:6px"><i style="width:11px;height:11px;border-radius:3px;background:rgba(77,212,255,.35);display:inline-block"></i>K branch</span>
+          <span style="display:inline-flex;align-items:center;gap:6px"><i style="width:11px;height:11px;border-radius:3px;background:rgba(157,123,255,.38);display:inline-block"></i>D branch</span>
+          <span style="display:inline-flex;align-items:center;gap:6px"><i style="width:11px;height:11px;border-radius:3px;border:1px dashed rgba(255,120,120,.7);display:inline-block"></i>unclaimed</span>
+        </div>
+        <p style="margin-top:14px;font-size:14px">Sixteen of the seventeen columns belong to a branch. The sixth is a deliberate gap that prints two spaces; the twelfth is the same idea that was never written. Click any column on this map to inspect it in section 05.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= 03 CORE LOGIC ================= -->
+  <section class="section" id="logic">
+    <div class="wrap">
+      <div class="head reveal">
+        <div class="eyebrow"><b>03</b> Core logic &amp; approach</div>
+        <h2>Two levels of decision, four branches</h2>
+        <p class="lead">The loops never mention a letter. All of the drawing lives in one chain of conditions — the first question asks which zone owns the column, the second asks which cells of that zone are stars.</p>
+      </div>
+
+      <div class="card reveal" style="margin-bottom:calc(20px * var(--sp))">
+        <h3 style="margin-bottom:12px">The chain, exactly as the file writes it</h3>
+        <div class="code" style="font-size:12.3px">
+          <div class="cb"><span class="fname"><i></i>body of the inner loop</span><span class="mono" style="font-size:11px;color:#5c6880">outerRowE × outerColE</span></div>
+          <pre><span class="tok-c">// zone - E</span>
+<span class="tok-k">if</span> (outerColE &lt;= 5) {
+    <span class="tok-k">if</span> (outerRowE == 1 || outerRowE == 5 || outerRowE == 5 / 2 + 1 || outerColE == 1) print(<span class="tok-s">"* "</span>);
+    <span class="tok-k">else</span> print(<span class="tok-s">"  "</span>);
+}
+<span class="tok-k">else if</span> (outerColE == 6) {
+    print(<span class="tok-s">"  "</span>);
+}
+<span class="tok-c">// zone - K</span>
+<span class="tok-k">else if</span> (outerColE &gt; 6 &amp;&amp; outerColE &lt; 12) {
+    <span class="tok-k">if</span> (outerColE == 7 || (outerRowE + outerColE == 11) || (outerColE - outerRowE == 5)) print(<span class="tok-s">"* "</span>);
+    <span class="tok-k">else</span> print(<span class="tok-s">"  "</span>);
+}
+<span class="tok-c">// zone - D</span>
+<span class="tok-k">else if</span> (outerColE &gt; 12 &amp;&amp; outerColE &lt; 18) {
+    <span class="tok-k">if</span> (outerRowE == 1 || outerRowE == 5 || outerColE == 13 || outerColE == 17) print(<span class="tok-s">"* "</span>);
+    <span class="tok-k">else</span> print(<span class="tok-s">"  "</span>);
+}
+<span class="tok-c">// no final else — column 12 reaches the end of the chain</span></pre>
+        </div>
+        <p class="src-note">Condensed for reading: <code class="inl">print</code> stands for <code class="inl">System.out.print</code>. Section 11 reproduces the file exactly, comments included.</p>
+      </div>
+
+      <div class="grid g2" style="align-items:start">
+        <div class="reveal">
+          <div class="flow">
+            <div class="fnode">
+              <div class="cond">row 1 … 5</div>
+              <div class="act">The outer loop fixes the row. Every row test in the chain is now evaluated against that row number.</div>
+            </div>
+            <div class="arrow">↓</div>
+            <div class="fnode key">
+              <div class="cond">which zone</div>
+              <div class="act">Four tests in order: ≤ 5, == 6, 7–11, 13–17. Exactly one can be true, and a match skips the rest of the chain.</div>
+            </div>
+            <div class="arrow">↓ inside the zone</div>
+            <div class="fnode">
+              <div class="cond">E — rows and spine</div>
+              <div class="act">Three full-width bars (rows 1, 5 and the middle row 3) plus the left spine at column 1. A union of four lines.</div>
+            </div>
+            <div class="fnode">
+              <div class="cond">K — stem and two arms</div>
+              <div class="act">Stem at column 7. The arms are the two diagonals <code class="inl">r + c == 11</code> and <code class="inl">c − r == 5</code>, which is why the letter is drawn by arithmetic rather than by rows.</div>
+            </div>
+            <div class="fnode">
+              <div class="cond">D — box</div>
+              <div class="act">Top and bottom rows from <code class="inl">r == 1</code> and <code class="inl">r == 5</code>, sides from <code class="inl">c == 13</code> and <code class="inl">c == 17</code>. A rectangle with a hollow middle.</div>
+            </div>
+            <div class="arrow">↓ after all 17 columns</div>
+            <div class="fnode">
+              <div class="cond">println()</div>
+              <div class="act">One newline ends the row; the loop moves to the next row. After the fifth row, a final <code class="inl">println()</code> adds one blank line.</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="reveal" style="--d:120ms">
+          <h3 style="margin-bottom:12px">Why the K needs arithmetic</h3>
+          <p>The E and the D are made of lines that run along the grid: <code class="inl">r == 1</code> is a whole row, <code class="inl">c == 13</code> is a whole column. One coordinate is enough to describe them.</p>
+          <p>The K's arms are diagonal, and no row or column test can describe a diagonal. The fix is to combine both coordinates so that the sum, or the difference, stays fixed:</p>
+          <ul style="font-size:14px">
+            <li><code class="inl">r + c</code> is constant along a line that moves down and left — the upper arm;</li>
+            <li><code class="inl">c − r</code> is constant along a line that moves down and right — the lower arm;</li>
+            <li><code class="inl">c == 7</code> is the vertical stem those arms lean on.</li>
+          </ul>
+          <div class="tablewrap tight" style="margin-top:14px">
+            <table>
+              <thead><tr><th class="mono">row</th><th class="mono">r + c = 11</th><th class="mono">c − r = 5</th><th>K cells printed</th></tr></thead>
+              <tbody>
+                <tr><td class="mono">1</td><td class="mono">c 10</td><td class="mono">c 6 <span style="color:#ff9f9f">(outside)</span></td><td class="mono">7, 10</td></tr>
+                <tr><td class="mono">2</td><td class="mono">c 9</td><td class="mono">c 7</td><td class="mono">7, 9</td></tr>
+                <tr><td class="mono">3</td><td class="mono">c 8</td><td class="mono">c 8</td><td class="mono">7, 8</td></tr>
+                <tr><td class="mono">4</td><td class="mono">c 7</td><td class="mono">c 9</td><td class="mono">7, 9</td></tr>
+                <tr><td class="mono">5</td><td class="mono">c 6 <span style="color:#ff9f9f">(outside)</span></td><td class="mono">c 10</td><td class="mono">7, 10</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <p class="src-note">On rows 2 to 4 both diagonals land inside the zone. On row 1 the lower equation lands on column 6, and on row 5 the upper one does the same — both outside the zone, so neither prints. Solving the two equations together gives <code class="inl">r = 3, c = 8</code>, the point where the arms meet, which is the middle row.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= 04 CONCEPTS ================= -->
+  <section class="section" id="concepts">
+    <div class="wrap">
+      <div class="head reveal">
+        <div class="eyebrow"><b>04</b> Key Java concepts</div>
+        <h2>What the file demonstrates</h2>
+        <p class="lead">Nine ideas carry this drawing programme. Each card states what the concept does in this file, why it is there, and what to keep.</p>
+      </div>
+
+      <div class="grid g3">
+        <div class="card reveal">
+          <h3><span class="tag">column zones</span></h3>
+          <p>The first test is <code class="inl">outerColE &lt;= 5</code>. That one question — which letter owns this column — is what allows three different shapes to share a single pair of loops.</p>
+          <p><strong>Why:</strong> without zones, each letter's rows would need column guards repeated inside them. <strong>Keep:</strong> partition the grid first, then draw inside each partition.</p>
+        </div>
+
+        <div class="card reveal" style="--d:80ms">
+          <h3><span class="tag">if / else if chain</span></h3>
+          <p>Four branches, tested in order, mutually exclusive. A column that matches the first branch never reaches the second.</p>
+          <p><strong>Why:</strong> a column can only belong to one letter. <strong>Keep:</strong> an exclusive chain also <em>documents</em> the partition — reading it top to bottom reads the grid left to right.</p>
+        </div>
+
+        <div class="card reveal" style="--d:160ms">
+          <h3><span class="tag">nested if</span></h3>
+          <p>Inside each zone a second test decides star or blank. The outer chain answers "which letter"; the inner test answers "which cell of that letter".</p>
+          <p><strong>Why:</strong> two different questions need two levels. <strong>Keep:</strong> each level should answer a strictly different question — otherwise one of them is redundant.</p>
+        </div>
+
+        <div class="card reveal">
+          <h3><span class="tag">diagonal equations</span></h3>
+          <p><code class="inl">outerRowE + outerColE == 11</code> and <code class="inl">outerColE - outerRowE == 5</code> draw the K's arms. A constant sum is a down-left line; a constant difference is a down-right line.</p>
+          <p><strong>Why:</strong> a row-major loop cannot step diagonally, but it can <em>recognise</em> a diagonal. <strong>Keep:</strong> these two families cover every diagonal in grid work.</p>
+        </div>
+
+        <div class="card reveal" style="--d:80ms">
+          <h3><span class="tag">uniform cell width</span></h3>
+          <p>Both alternatives are two characters: <code class="inl">"* "</code> and <code class="inl">"  "</code>. Because the widths agree, every row is the same length and the letters stay aligned.</p>
+          <p><strong>Why:</strong> mixing a one-character blank with a two-character star would shear the rows apart. <strong>Keep:</strong> decide the cell width once, and use it on both sides of every <code class="inl">if</code>.</p>
+        </div>
+
+        <div class="card reveal" style="--d:160ms">
+          <h3><span class="tag">literals as size</span></h3>
+          <p>The number 5 appears in the banner text, in <code class="inl">5 * 3 + 2</code>, in the row bound <code class="inl">&lt;= 5</code>, in <code class="inl">5 / 2 + 1</code> and twice more in the E and D row tests. The values 11, 12, 13 and 17 encode positions.</p>
+          <p><strong>Why:</strong> a fixed drawing is quick to write with literals. <strong>Keep:</strong> every literal is a promise that the size will never change.</p>
+        </div>
+
+        <div class="card reveal">
+          <h3><span class="tag">escape sequences</span></h3>
+          <p>One statement carries four lines: <code class="inl">println("Here's My …\n Name : …\nInitials : E K D\n")</code>. The <code class="inl">\n</code> characters break the string, and <code class="inl">println</code> adds a newline of its own at the end.</p>
+          <p><strong>Why:</strong> fewer statements for one block of text. <strong>Keep:</strong> an escape inside a string and a newline written by <code class="inl">println</code> are two separate things.</p>
+        </div>
+
+        <div class="card reveal" style="--d:80ms">
+          <h3><span class="tag">integer division</span></h3>
+          <p><code class="inl">5 / 2 + 1</code> evaluates to 3: division truncates before the addition. That is exactly the middle row of a five-row letter, and it is also the reason the E's middle bar is where it is.</p>
+          <p><strong>Why:</strong> a middle row must be an integer index. <strong>Keep:</strong> for an even height this expression rounds down, so the "middle" sits one row above centre.</p>
+        </div>
+
+        <div class="card reveal" style="--d:160ms">
+          <h3><span class="tag">no final else</span></h3>
+          <p>The chain ends at the D branch. A column that matches none of the four falls out of the <code class="inl">if</code> statement without printing anything at all — not even a space.</p>
+          <p><strong>Why:</strong> the ranges were written as <code class="inl">&lt; 12</code> and <code class="inl">&gt; 12</code>, which leaves 12 out. <strong>Keep:</strong> a closing <code class="inl">else</code> would have turned a silent hole into a visible, fixable one.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= 05 EXPERIMENT ================= -->
+  <section class="section" id="experiment">
+    <div class="wrap">
+      <div class="head reveal">
+        <div class="eyebrow"><b>05</b> Interactive experimentation</div>
+        <h2>Inspect the grid, one column at a time</h2>
+        <p class="lead">Pick any column and see which branch claims it, what that branch decides for each of the five rows, and how many characters the column contributes to a line. The twelfth column is the interesting one: no branch matches it, so it contributes nothing.</p>
+      </div>
+
+      <div class="card reveal">
+        <div class="colmap" id="pickMap"></div>
+        <div class="zonebar17" id="pickZones" style="margin-top:10px"></div>
+      </div>
+
+      <div class="lab2 reveal" style="margin-top:calc(18px * var(--sp))">
+        <div class="hud">
+          <div class="ownerface">
+            <div>
+              <div class="oc">owner</div>
+              <div class="on" id="ownName">E zone — columns 1 to 5</div>
+            </div>
+            <div class="chars" id="ownChars">2 chars × 5 rows</div>
+          </div>
+
+          <div class="tc-head" style="margin-top:16px">the chain, evaluated for this column</div>
+          <div class="chainlist" id="chainList"></div>
+
+          <div class="tc-head" style="margin-top:16px">what this column prints, row by row</div>
+          <div class="tablewrap tight">
+            <table>
+              <thead><tr><th class="mono">row</th><th class="mono">printed</th><th class="mono">width</th><th>which test fired</th></tr></thead>
+              <tbody id="colRows"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <div>
+          <div class="hud" style="padding:calc(18px * var(--sp))">
+            <div class="tc-head" style="margin-bottom:10px">the grid, with this column marked</div>
+            <div style="overflow-x:auto">
+              <div class="minigrid" id="miniGrid"></div>
+            </div>
+            <div class="statline" style="margin-top:14px">
+              <span class="b">row width <b id="sWidth">32</b></span>
+              <span class="b">total chars <b id="sGrid">160</b></span>
+              <span class="b">cells <b>85</b></span>
+              <span class="b">stars <b id="sStars">43</b></span>
+            </div>
+          </div>
+
+          <div class="hud" style="padding:calc(18px * var(--sp));margin-top:14px">
+            <div class="tc-head" style="margin-bottom:10px">console output — the whole run</div>
+            <pre class="con" id="fullOut" style="max-height:250px;font-size:11px"></pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="card reveal" style="margin-top:calc(20px * var(--sp))">
+        <h3>Column ledger — every cell of the grid</h3>
+        <p style="font-size:14px">Rows are the five lines of output; columns are the seventeen tests. A lit cell prints a star, a dim cell prints two spaces, and a red cell prints nothing because no branch matched it.</p>
+        <div class="ledger17" id="ledger17" style="margin-top:12px"></div>
+        <div class="statline" style="margin-top:14px">
+          <span class="b">stars <b>43</b></span>
+          <span class="b">two-space blanks <b>37</b></span>
+          <span class="b">zero-character cells <b>5</b></span>
+        </div>
+        <p class="src-note">Column 12 contributes five zero-character cells — one per row. Everything else in the grid prints exactly two characters.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= 06 TRACE ================= -->
+  <section class="section" id="walkthrough">
+    <div class="wrap">
+      <div class="head reveal">
+        <div class="eyebrow"><b>06</b> Step-by-step execution</div>
+        <h2>Follow the loops through one full run</h2>
+        <p class="lead">Every row is walked in the order the chain tests it: the E block, the gap at column 6, the K, the unclaimed column 12, then the D. The counter of stars resets at every newline.</p>
+      </div>
+
+      <div class="trace reveal">
+        <div class="trace-bar">
+          <label class="mono" for="traceCase" style="color:var(--dim);font-size:11.5px;letter-spacing:.14em;text-transform:uppercase">scope</label>
+          <select id="traceCase">
+            <option value="all" selected>complete run — rows 1 to 5</option>
+            <option value="1">row 1 — bars, top arm of the K, top of the D</option>
+            <option value="2">row 2 — hollow letters</option>
+            <option value="3">row 3 — middle row</option>
+            <option value="5">row 5 — bottom bars</option>
+          </select>
+          <button class="tbtn" id="tPrev" type="button">◀ prev</button>
+          <button class="tbtn primary" id="tPlay" type="button">▶ play</button>
+          <button class="tbtn" id="tNext" type="button">next ▶</button>
+          <button class="tbtn" id="tReset" type="button">↺ reset</button>
+          <span class="trace-count" id="traceCount">step 1 / 1</span>
+        </div>
+
+        <div class="trace-grid">
+          <div class="now-card">
+            <div class="stepno" id="stepNo">step 1</div>
+            <h3 id="stepTitle">—</h3>
+            <p class="detail" id="stepDetail">—</p>
+            <div class="vars" id="stepVars"></div>
+            <div class="stack">
+              <div class="sh"><span>position</span><b id="stackState">main running</b></div>
+              <div class="frame active" id="frameRow"><span class="name">outerRowE</span><span class="meta">1 … 5</span></div>
+              <div class="frame" id="frameCol"><span class="name">outerColE + zone chain</span><span class="meta">1 … 17</span></div>
+            </div>
+          </div>
+          <div>
+            <div class="tc-head">console output so far</div>
+            <pre class="con" id="traceOut" style="height:250px;overflow:auto;font-size:11px"></pre>
+            <div class="tc-head" style="margin-top:12px">current row, built so far</div>
+            <div class="stream" id="traceRow" style="min-height:42px;font-size:11.5px;overflow-x:auto;white-space:pre">—</div>
+            <div class="rail" id="traceRail"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= 07 OUTPUT ================= -->
+  <section class="section" id="output">
+    <div class="wrap">
+      <div class="head reveal">
+        <div class="eyebrow"><b>07</b> Output explanation</div>
+        <h2>Line by line, from statement to screen</h2>
+        <p class="lead">Two statements produce the banner, the two loops produce the five grid rows, and one bare <code class="inl">println()</code> closes the output. Nothing is read, so nothing varies between runs.</p>
+      </div>
+
+      <div class="grid g2" style="align-items:start">
+        <div class="reveal">
+          <div class="code">
+            <div class="cb"><span class="fname"><i></i>console — annotated</span><span class="mono" style="font-size:11px;color:#5c6880">11 lines</span></div>
+            <pre id="annotOut" style="font-size:10.4px"></pre>
+          </div>
+        </div>
+        <div class="reveal" style="--d:120ms">
+          <h3>The banner is one statement, four lines</h3>
+          <div class="stream" style="margin-top:8px;font-size:11.6px;white-space:pre-wrap">println("\nConsidering N = 5");
+  → (blank line)        ← the leading \n
+  → Considering N = 5
+
+println("Here's My Architect Signature...\n Name : Eiladri Kumar Das\nInitials : E K D\n");
+  → Here's My Architect Signature...
+  → " Name : Eiladri Kumar Das"   ← note the leading space
+  → Initials : E K D
+  → (blank line)        ← trailing \n plus println's own newline</div>
+          <p style="margin-top:14px;font-size:14px">The leading space inside <code class="inl">" Name : …"</code> is part of the string. It pushes the name one character to the right of the line above it, which is why the banner is not left-aligned with itself.</p>
+          <h3 style="margin-top:20px">Printed vs computed</h3>
+          <div class="tablewrap tight" style="margin-top:8px">
+            <table>
+              <thead><tr><th>quantity</th><th>kind</th><th>visible?</th></tr></thead>
+              <tbody>
+                <tr><td class="mono">banner text</td><td>console output</td><td><span class="pill ok">yes</span></td></tr>
+                <tr><td class="mono">"* " and "  " cells</td><td>console output</td><td><span class="pill ok">yes</span></td></tr>
+                <tr><td class="mono">allowedCols = 17</td><td>local variable</td><td><span class="pill neu">inferable</span></td></tr>
+                <tr><td class="mono">which branch ran</td><td>control flow</td><td><span class="pill bad">invisible</span></td></tr>
+                <tr><td class="mono">column 12's silence</td><td>missing branch</td><td><span class="pill bad">invisible</span></td></tr>
+                <tr><td class="mono">loop counters</td><td>loop variables</td><td><span class="pill bad">never printed</span></td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <div class="grid g3" style="margin-top:calc(20px * var(--sp))">
+        <div class="card reveal">
+          <h3 style="font-size:15px">The E, row by row</h3>
+          <div class="tablewrap tight" style="margin-top:8px">
+            <table>
+              <thead><tr><th class="mono">row</th><th>cells (1–5)</th><th class="mono">why</th></tr></thead>
+              <tbody>
+                <tr><td class="mono">1</td><td class="mono" style="color:#d9fca8">* * * * *</td><td class="mono">r == 1</td></tr>
+                <tr><td class="mono">2</td><td class="mono" style="color:#d9fca8">*&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</td><td class="mono">c == 1</td></tr>
+                <tr><td class="mono">3</td><td class="mono" style="color:#d9fca8">* * * * *</td><td class="mono">r == 3</td></tr>
+                <tr><td class="mono">4</td><td class="mono" style="color:#d9fca8">*&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</td><td class="mono">c == 1</td></tr>
+                <tr><td class="mono">5</td><td class="mono" style="color:#d9fca8">* * * * *</td><td class="mono">r == 5</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <p class="src-note">Four conditions produce three bars and one spine. Rows 1 and 5 also satisfy <code class="inl">c == 1</code>, but the union prints each cell once.</p>
+        </div>
+
+        <div class="card reveal" style="--d:100ms">
+          <h3 style="font-size:15px">The K, cell by cell</h3>
+          <div class="tablewrap tight" style="margin-top:8px">
+            <table>
+              <thead><tr><th class="mono">row</th><th class="mono">7</th><th class="mono">8</th><th class="mono">9</th><th class="mono">10</th><th class="mono">11</th></tr></thead>
+              <tbody>
+                <tr><td class="mono">1</td><td class="mono" style="color:#a7ecff">★</td><td class="mono">·</td><td class="mono">·</td><td class="mono" style="color:#a7ecff">★</td><td class="mono">·</td></tr>
+                <tr><td class="mono">2</td><td class="mono" style="color:#a7ecff">★</td><td class="mono">·</td><td class="mono" style="color:#a7ecff">★</td><td class="mono">·</td><td class="mono">·</td></tr>
+                <tr><td class="mono">3</td><td class="mono" style="color:#a7ecff">★</td><td class="mono" style="color:#a7ecff">★</td><td class="mono">·</td><td class="mono">·</td><td class="mono">·</td></tr>
+                <tr><td class="mono">4</td><td class="mono" style="color:#a7ecff">★</td><td class="mono">·</td><td class="mono" style="color:#a7ecff">★</td><td class="mono">·</td><td class="mono">·</td></tr>
+                <tr><td class="mono">5</td><td class="mono" style="color:#a7ecff">★</td><td class="mono">·</td><td class="mono">·</td><td class="mono" style="color:#a7ecff">★</td><td class="mono">·</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <p class="src-note">Column 11 is never a star on any row — which is precisely why the missing column 12 never shows. The gap between the K and the D is whatever column 11 leaves plus nothing.</p>
+        </div>
+
+        <div class="card reveal" style="--d:200ms">
+          <h3 style="font-size:15px">The D, and the last line</h3>
+          <div class="stream" style="margin-top:8px;font-size:11.6px;white-space:pre;color:#dcc7ff">* * * * *
+*       *
+*       *
+*       *
+* * * * *</div>
+          <p style="font-size:13.4px;margin-top:12px">Four conditions make a closed rectangle: two rows and two columns. The interior prints two spaces on every middle row, so the letter is hollow by construction rather than by an exception.</p>
+          <p style="font-size:13.4px">After the fifth row the only remaining statement is the bare <code class="inl">println()</code>, which writes one newline — so the output ends with a single blank line and nothing else.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= 08 EDGE CASES ================= -->
+  <section class="section" id="edges">
+    <div class="wrap">
+      <div class="head reveal">
+        <div class="eyebrow"><b>08</b> Edge cases, correctness &amp; limitations</div>
+        <h2>What the drawing does, and what it cannot do</h2>
+        <p class="lead">There is no input, so there are no bad values to guard against — every run is identical. The edges are structural: the column nobody claimed, and the literals that assume the size is five.</p>
+      </div>
+
+      <div class="tablewrap reveal">
+        <table>
+          <thead><tr><th>situation</th><th>what happens</th><th>verdict</th></tr></thead>
+          <tbody>
+            <tr><td class="mono">column 12</td><td>no branch matches, so the cell prints nothing while every other gap column prints two spaces</td><td><span class="pill bad">unhandled</span></td></tr>
+            <tr><td class="mono">column 6</td><td>its own <code class="inl">else if</code> prints <code class="inl">"  "</code> — the gap after the E is exactly two characters</td><td><span class="pill ok">intended</span></td></tr>
+            <tr><td class="mono">column 18 and beyond</td><td>outside every range, so also unclaimed — unreachable only because <code class="inl">allowedCols</code> stops the loop at 17</td><td><span class="pill neu">latent</span></td></tr>
+            <tr><td class="mono">row 1 and row 5</td><td>twelve stars each: five from the E, one stem plus one arm from the K, five from the D</td><td><span class="pill ok">correct</span></td></tr>
+            <tr><td class="mono">row 3, the middle</td><td>nine stars: the E's middle bar, the K's arms meeting at column 8, the D hollow</td><td><span class="pill ok">correct</span></td></tr>
+            <tr><td class="mono">rows 2 and 4</td><td>five stars each: the E's spine, the K's stem plus one arm, the D's two walls</td><td><span class="pill ok">correct</span></td></tr>
+            <tr><td class="mono">row bound changed to 7</td><td>the bars stay on rows 1, 5 and 3, so rows 6 and 7 are bare spines; the K's narrow arm keeps descending and reaches column 11 on row 6</td><td><span class="pill bad">breaks</span></td></tr>
+            <tr><td class="mono">allowedCols changed to 20</td><td>columns 18–20 match no branch and print nothing; every row still ends at column 17's last space</td><td><span class="pill bad">breaks</span></td></tr>
+            <tr><td class="mono">any input</td><td>never read — <code class="inl">String[] args</code> is ignored</td><td><span class="pill neu">not applicable</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="grid g2" style="margin-top:calc(20px * var(--sp));align-items:start">
+        <div class="card reveal">
+          <h3>Limitations in this implementation</h3>
+          <ul style="font-size:13.9px">
+            <li><strong>One column belongs to nobody.</strong> The chain covers ≤ 5, = 6, 7–11 and 13–17. Column 12 falls between <code class="inl">&lt; 12</code> and <code class="inl">&gt; 12</code>, so it emits zero characters where every other column emits two. It is invisible today only because column 11 is blank on all five rows.</li>
+            <li><strong>The size is written six times.</strong> <code class="inl">5</code> appears in the banner text, in <code class="inl">5 * 3 + 2</code>, in the row bound, in <code class="inl">5 / 2 + 1</code> and twice in the letter tests. Changing the size means finding all of them, and the K's constants would need recomputing as well.</li>
+            <li><strong>The K is anchored to the grid, not to itself.</strong> <code class="inl">r + c == 11</code> and <code class="inl">c − r == 5</code> describe this exact placement. Move the K one column and both arms shift; make the grid taller and the lower arm disappears past row 5.</li>
+            <li><strong>No closing <code class="inl">else</code>.</strong> The chain stops at the D, so anything outside every range prints nothing rather than a space. That is what makes column 12 silent.</li>
+            <li><strong>The banner is inside the drawing code.</strong> The name and initials are string literals in <code class="inl">main</code>, alongside the loops, so the file is a personal poster rather than a reusable shape.</li>
+            <li><strong>The D has no corner treatment.</strong> It is a rectangle: two rows and two columns. Consistent, but not the rounded block letter a printed signature would use.</li>
+            <li><strong>Nothing is a function of anything.</strong> The programme takes no argument and exposes no method, so the only way to produce a different signature is to edit and recompile.</li>
+          </ul>
+        </div>
+
+        <div class="reveal" style="--d:120ms">
+          <h3>Correctness, stated carefully</h3>
+          <p><strong>As a drawing: correct.</strong> For the fixed 5 × 17 grid the programme produces a readable E, K and D. Each row is 32 characters, the three letters are separated and vertically aligned, and the K's arms meet exactly on the middle row. The loops terminate after exactly 85 cell decisions.</p>
+          <p><strong>As a pattern programme: hard-coded.</strong> The shape is right for one size and one placement. The E and D would survive a taller grid — their tests mention only rows 1, 5, the middle and the letters' own columns — but the K would not, because its two constants encode a five-row letter. That asymmetry is worth seeing: one file, some portable conditions and some frozen ones.</p>
+          <p><strong>The missing branch is a defect, not a style choice.</strong> A cell that prints nothing shifts everything to its right by two characters, whereas a cell that prints two spaces does not. The output looks right because of an unrelated accident in the K's shape, not because the spacing was designed.</p>
+
+          <h3 style="margin-top:22px">Hypothetical probes — <span style="color:#ffb066">not this programme</span></h3>
+          <p style="font-size:13.8px">These show why the literals matter. Each changes only the loop bounds, with every constant left as it is. The submitted file never runs either of them.</p>
+
+          <div class="probe" style="margin-top:10px">
+            <div class="ph"><span>row bound 7, constants untouched</span><b>hypothetical</b></div>
+            <pre id="p7"></pre>
+            <p style="font-size:13px;margin:10px 0 0;color:#ffc9c9">Rows 6 and 7 carry only the E's spine, the K's stem and the D's walls, because the bars are still welded to rows 1, 5 and 3. The K's narrow arm keeps travelling and reaches column 11 on row 6, one column away from the D.</p>
+          </div>
+
+          <div class="probe" style="margin-top:10px">
+            <div class="ph"><span>row bound 3, constants untouched</span><b>hypothetical</b></div>
+            <pre id="p3"></pre>
+            <p style="font-size:13px;margin:10px 0 0;color:#cfe6f0">Rows 1 and 3 survive as bars, so the E still reads — but the D has lost its bottom edge, because <code class="inl">outerRowE == 5</code> can never be true in a three-row grid. The middle bar survives only because <code class="inl">5 / 2 + 1</code> happens to equal 3.</p>
+          </div>
+
+          <div class="note warn" style="margin-top:14px"><b>Not modified.</b> Section 11 reproduces the file exactly, including its comments and its formatting. The probes above illustrate fragility; they are not variants of the programme.</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= 09 COMPLEXITY ================= -->
+  <section class="section" id="complexity">
+    <div class="wrap">
+      <div class="head reveal">
+        <div class="eyebrow"><b>09</b> Time &amp; space complexity</div>
+        <h2>A fixed amount of work, by construction</h2>
+        <p class="lead">Seventeen columns are tested on each of five rows, so the loop body runs exactly 85 times. Formally the shape is <code class="inl">O(rows × cols)</code>; in practice the answer never changes.</p>
+      </div>
+
+      <div class="grid g2" style="align-items:start">
+        <div class="card reveal">
+          <h3>Time — <span class="mono" style="color:#b6f24a">Θ(1)</span> here, <span class="mono" style="color:#b6f24a">O(R × C)</span> in general</h3>
+          <p>The body runs <code class="inl">5 × 17 = 85</code> times. Each pass evaluates at most four zone conditions and, once inside a zone, up to four cell conditions. That is a constant amount of work per cell, so the total cost is proportional to the number of cells.</p>
+          <p>Output is 160 characters of grid plus the banner. Both the work and the output are fixed, which makes the programme <code class="inl">Θ(1)</code> with respect to everything — it has no inputs.</p>
+          <div class="bars" id="barChart" style="margin-top:16px">
+            <div class="barrow"><span>cells</span><div class="bartrack"><div class="barfill" data-w="100"></div></div><span class="ops">85</span></div>
+            <div class="barrow"><span>stars</span><div class="bartrack"><div class="barfill" data-w="51"></div></div><span class="ops">43</span></div>
+            <div class="barrow"><span>two-space blanks</span><div class="bartrack"><div class="barfill" data-w="44"></div></div><span class="ops">37</span></div>
+            <div class="barrow"><span>zero-char cells</span><div class="bartrack"><div class="barfill" data-w="6"></div></div><span class="ops">5</span></div>
+          </div>
+          <p class="src-note">Roughly half the cells are stars. Of the 42 blanks, 37 print two spaces and 5 print nothing at all.</p>
+        </div>
+
+        <div class="reveal" style="--d:120ms">
+          <h3>Space — <span class="mono" style="color:#b6f24a">Θ(1)</span></h3>
+          <p>Two loop counters and one <code class="inl">int</code> for <code class="inl">allowedCols</code>, plus whatever <code class="inl">System.out</code> buffers internally. No array holds the grid, because each cell is decided, printed and forgotten in the same pass.</p>
+          <p>A version that stored the grid in a <code class="inl">char[][]</code> would need <code class="inl">O(rows × cols)</code> space for no gain here — there is nothing to revisit once a row has been printed.</p>
+          <h3 style="margin-top:22px">If the size were a variable</h3>
+          <p>Let the letter height be n and derive everything from it: the grid becomes n rows by <code class="inl">3n + 2</code> columns, the middle row becomes <code class="inl">n / 2 + 1</code>, and the K's constants become expressions of n and of the K's own start column. The programme then costs <code class="inl">O(n²)</code> time and <code class="inl">Θ(1)</code> space.</p>
+          <div class="tablewrap tight" style="margin-top:14px">
+            <table>
+              <thead><tr><th class="mono">n</th><th class="mono">columns</th><th class="mono">cells</th><th class="mono">stars</th><th class="mono">row chars</th></tr></thead>
+              <tbody>
+                <tr><td class="mono">3</td><td class="mono">11</td><td class="mono">33</td><td class="mono">21</td><td class="mono">20</td></tr>
+                <tr><td class="mono">5</td><td class="mono">17</td><td class="mono">85</td><td class="mono">43</td><td class="mono">32</td></tr>
+                <tr><td class="mono">7</td><td class="mono">23</td><td class="mono">161</td><td class="mono">65</td><td class="mono">44</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <p class="src-note">Star counts here assume the E's and D's bars stay on rows 1, n and the middle — that is, a version where the literals were replaced by n. They are not what this file would print.</p>
+          <div class="note">The trade in this file is simplicity against generality: fixed literals make the code short and the output certain, at the cost of never being able to draw anything else.</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= 10 TAKEAWAYS ================= -->
+  <section class="section" id="takeaways">
+    <div class="wrap">
+      <div class="head reveal">
+        <div class="eyebrow"><b>10</b> Takeaways &amp; future connections</div>
+        <h2>What this drawing teaches</h2>
+      </div>
+
+      <div class="grid g3">
+        <div class="card reveal">
+          <h3><span class="tag">lesson</span> <span style="font-size:15px">partition before you draw</span></h3>
+          <p>Assign every column to an owner first, then write each letter's own condition inside its block. The loops stay untouched no matter how many letters are added; only the chain grows a branch.</p>
+          <p>The proof is in this file: three shapes, one pair of loops.</p>
+        </div>
+
+        <div class="card reveal" style="--d:100ms">
+          <h3><span class="tag">discipline</span> <span style="font-size:15px">make the ranges tile</span></h3>
+          <p>Write the cover as a closed list before writing any code — 1–5, 6, 7–11, 12, 13–17 — and check that consecutive ranges share a boundary rather than leaving a gap between them.</p>
+          <p>Here the boundaries were written as <code class="inl">&lt; 12</code> and <code class="inl">&gt; 12</code>, so 12 belonged to neither.</p>
+        </div>
+
+        <div class="card reveal" style="--d:200ms">
+          <h3><span class="tag">habit</span> <span style="font-size:15px">end the chain</span></h3>
+          <p>A final <code class="inl">else</code> that prints a space costs one line and converts a silent hole into something visible on the first run.</p>
+          <p>Silence is the hardest output to notice, because the programme still looks like it finished.</p>
+        </div>
+      </div>
+
+      <div class="grid g2" style="margin-top:calc(18px * var(--sp));align-items:start">
+        <div class="challenge reveal">
+          <h3>Check your understanding</h3>
+          <p style="color:#c6d1ec;margin-bottom:6px">Every row is 32 characters, yet the grid has 17 columns of two characters each. Where did the missing two go, and why does the output still look evenly spaced?</p>
+          <button class="tbtn reveal-btn" id="chal1" type="button">show answer</button>
+          <div class="answer" id="ans1">Column 12 has no branch, so it prints zero characters instead of two — 34 − 2 = 32. The spacing survives because column 11, the K's last column, is blank on all five rows: the widest the K ever gets is column 10, so column 11 always contributes <code class="inl">"  "</code>. The gap between the K and the D is therefore column 11's two spaces plus column 12's zero, which coincidentally equals the two spaces of column 6. The layout is right by accident. It would become visible the moment the K widened — if the diagonals were changed to meet at column 9, the middle row would put a star in column 11 and the D would sit flush against it.</div>
+        </div>
+
+        <div class="challenge reveal" style="--d:120ms">
+          <h3>One more</h3>
+          <p style="color:#c6d1ec;margin-bottom:6px">The K uses both <code class="inl">r + c == 11</code> and <code class="inl">c − r == 5</code>. Why does the first one print nothing on row 5, and what would the constant have to be to fix it?</p>
+          <button class="tbtn reveal-btn" id="chal2" type="button">show answer</button>
+          <div class="answer" id="ans2">On row 5 the equation gives <code class="inl">c = 11 − 5 = 6</code>, which is the gap column between the E and the K — outside the 7–11 zone, so the branch never gets that far and no star is printed. That is not a bug: the upper arm has already ended. Its last distinct cell is the meeting point at row 3, column 8 — on row 4 the same equation lands on column 7, which is the stem that is already being printed. Below the meeting point the lower arm takes over. If you wanted a K with arms that both span the full height, the upper arm would need a different constant — one that reaches row 5 at column 10, which is <code class="inl">r + c == 15</code>. That would also move the meeting point, so the two arms would stop crossing at the middle row. The pair 11 and 5 is what makes them meet exactly at row 3.</div>
+        </div>
+      </div>
+
+      <div class="card reveal" style="margin-top:calc(18px * var(--sp))">
+        <h3><span class="tag">later</span></h3>
+        <p>The next version of this idea is the same programme with the size named once and every boundary derived from it: zones as expressions, the middle row as <code class="inl">n / 2 + 1</code>, and both K constants written in terms of the stem column and that middle row. Then the signature could be drawn at any height without touching a literal.</p>
+        <p>Past that, the same two ideas recur everywhere. Deciding a cell from its coordinates is how sprites, chessboards and image tiles are addressed, and recognising a shape by an arithmetic relation between indices is the beginning of matrix work — testing whether a cell lies on a diagonal, inside a triangle, or in a band.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= 11 SOURCE ================= -->
+  <section class="section" id="source">
+    <div class="wrap">
+      <div class="head reveal">
+        <div class="eyebrow"><b>11</b> Your original Java source</div>
+        <h2>architectSignature.java — verbatim</h2>
+        <p class="lead">The file exactly as submitted: one class, one method, two loops, and a four-branch chain whose comments name the zones it is partitioning.</p>
+      </div>
+
+      <div class="src-wrap reveal">
+        <div class="code" id="srcCode">
+          <div class="cb">
+            <span class="fname"><i></i>architectSignature.java</span>
+            <button class="copy-btn" id="copySrc" type="button">copy source</button>
+          </div>
+          <pre id="srcPre">public class architectSignature {
+    public static void main(String[] args) {
+
+        System.out.println("\nConsidering N = 5");
+        System.out.println("Here's My Architect Signature...\n Name : Eiladri Kumar Das\nInitials : E K D\n");
+
+        int allowedCols = 5 * 3 + 2;
+
+        // complete grid
+        for (int outerRowE = 1; outerRowE &lt;= 5; outerRowE++) {
+            for (int outerColE = 1; outerColE &lt;= allowedCols; outerColE++) {
+
+                // inside n x (n*3)
+
+                // zone - E
+                if (outerColE &lt;= 5) {
+
+                    // printing E
+                    if (outerRowE == 1 || outerRowE == 5 || outerRowE == 5 / 2 + 1 || outerColE == 1) {
+                        System.out.print("* ");
+                    } else {
+                        System.out.print("  ");
+                    }
+
+                }
+
+                else if (outerColE == 6) {
+                    System.out.print("  ");
+                }
+
+                // zone - K
+                else if (outerColE &gt; 6 &amp;&amp; outerColE &lt; 12) {
+
+                    // printing K
+                    if (outerColE == 7 || (outerRowE + outerColE == 11) || (outerColE - outerRowE == 5)) {
+                        System.out.print("* ");
+                    } else {
+                        System.out.print("  ");
+                    }
+
+                }
+
+                // zone - D
+                else if (outerColE &gt; 12 &amp;&amp; outerColE &lt; 18) {
+                    // printing D
+                    if (outerRowE == 1 || outerRowE == 5 || outerColE == 13 || outerColE == 17) {
+                        System.out.print("* ");
+                    } else {
+                        System.out.print("  ");
+                    }
+                }
+
+            }
+            System.out.println();
+        }
+        System.out.println();
+    }
+}</pre>
+        </div>
+        <p class="src-note">Copying yields the plain source, without colouring. Nothing is added, removed or reformatted — the comment lines, the brace style of the E branch and the missing final <code class="inl">else</code> are all reproduced as written.</p>
+      </div>
+
+      <div class="grid g3" style="margin-top:calc(18px * var(--sp))">
+        <div class="card reveal">
+          <h3 style="font-size:15px">The four claims</h3>
+          <div class="stream" style="margin-top:8px;font-size:11.6px;white-space:pre-wrap">c &lt;= 5            E owns 1–5
+c == 6            gap, two spaces
+c &gt; 6 &amp;&amp; c &lt; 12    K owns 7–11
+c &gt; 12 &amp;&amp; c &lt; 18   D owns 13–17
+                  ─────────────
+                  12 → nothing</div>
+          <p style="font-size:13.2px;margin-top:10px">Four ranges cover sixteen columns. The seventeenth is the one between the K's upper bound and the D's lower bound.</p>
+        </div>
+        <div class="card reveal" style="--d:100ms">
+          <h3 style="font-size:15px">Where 17 comes from</h3>
+          <div class="stream" style="margin-top:8px;font-size:11.6px;white-space:pre-wrap">int allowedCols = 5 * 3 + 2;
+
+  5 * 3   = 15   three letters, five wide
+      2   =  2   two gap columns (6, 12)
+            --
+            17   the inner loop's bound</div>
+          <p style="font-size:13.2px;margin-top:10px">The arithmetic describes the intent honestly. Only one of the two gap columns was given a branch.</p>
+        </div>
+        <div class="card reveal" style="--d:200ms">
+          <h3 style="font-size:15px">What is not in the file</h3>
+          <ul style="font-size:13.4px">
+            <li>no <code class="inl">Scanner</code>, no size variable</li>
+            <li>no final <code class="inl">else</code> on the chain</li>
+            <li>no method besides <code class="inl">main</code></li>
+            <li>no array, no <code class="inl">StringBuilder</code></li>
+            <li>no validation, because nothing is read</li>
+          </ul>
+          <p style="font-size:13.2px;margin-top:10px">Everything the programme knows is in its literals, which is why the output is the same on every run.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= 12 NEXT ================= -->
+  <section class="section" id="next">
+    <div class="wrap">
+      <div class="head reveal">
+        <div class="eyebrow"><b>12</b> Next learning step</div>
+        <h2>Where this leads</h2>
+        <p class="lead">The signature draws correctly. The open question is what the same conditions would look like if the size stopped being a literal — and that question has a precise, small answer.</p>
+      </div>
+
+      <div class="grid g2" style="align-items:start">
+        <div class="card reveal">
+          <h3>Name the size, then derive everything</h3>
+          <p>The file already contains the rule it needs: <code class="inl">5 * 3 + 2</code> is a size formula written as a constant. The step is to name the height, then express every boundary and both diagonal constants from it.</p>
+          <div class="stream" style="margin:12px 0;font-size:11px;white-space:pre-wrap">int n   = 5;              // letter height
+int mid = n / 2 + 1;      // middle row
+int e0  = 1,        e1 = n;        // E
+int k0  = n + 2,    k1 = 2*n + 1;  // K
+int d0  = 2*n + 3,  d1 = 3*n + 2;  // D
+int allowedCols = 3 * n + 2;
+
+// K arms, from the stem and the middle row
+boolean upper = (r + c) == (k0 + mid + 1);
+boolean lower = (c - r) == (k0 - mid + 1);</div>
+          <p>The loops do not change. The chain keeps its shape. What changes is that every 5, 11, 12, 13 and 17 becomes a name, and the K stops being tied to one grid.</p>
+          <p class="src-note"><strong>Not assumed.</strong> Whether this is the next programme you write is your call — the page stops at the question.</p>
+        </div>
+        <div class="card reveal" style="--d:120ms">
+          <h3>What carries forward from this file</h3>
+          <ul>
+            <li><strong>Zones first.</strong> Decide the column partition, check it covers the grid, and only then write the letters.</li>
+            <li><strong>Close the chain.</strong> A final <code class="inl">else</code> that prints a space makes an unclaimed column visible instead of silent.</li>
+            <li><strong>Diagonals are equations.</strong> A constant <code class="inl">r + c</code> and a constant <code class="inl">c − r</code> — two families, four edges.</li>
+            <li><strong>One cell width.</strong> Both branches of every cell test must print the same number of characters.</li>
+            <li><strong>Truncation is a tool.</strong> <code class="inl">5 / 2 + 1</code> is a middle row only for odd heights; for even ones it lands one row low.</li>
+            <li><strong>Keep the banner separate.</strong> A name is not part of a shape; mixing them makes both harder to reuse.</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<footer>
+  <div class="wrap foot-in">
+    <p>The Architect's Sign — architectSignature.java dissected from the submitted source. Behaviour described here matches the code as written.</p>
+    <p class="mono">nested loops · if / else if chain · column zones · coordinate equations · print</p>
+  </div>
+</footer>
+
+<div class="dock" id="dock">
+  <div class="dock-panel" id="dockPanel">
+    <div class="grp">
+      <span class="glab">balance</span>
+      <div class="seg" id="segDensity">
+        <button data-density="comfort" type="button">comfort</button>
+        <button data-density="balanced" class="on" type="button">balanced</button>
+        <button data-density="compact" type="button">compact</button>
+      </div>
+    </div>
+    <div class="grp">
+      <span class="glab">glow</span>
+      <div class="seg" id="segGlow">
+        <button data-glow="low" type="button">low</button>
+        <button data-glow="medium" class="on" type="button">soft</button>
+        <button data-glow="high" type="button">high</button>
+      </div>
+    </div>
+  </div>
+  <button class="dock-toggle" id="dockToggle" type="button" aria-expanded="false" aria-controls="dockPanel">
+    <span class="g"></span>
+    <span id="dockCur">balanced · soft</span>
+    <svg class="chev" width="11" height="11" viewBox="0 0 12 12" fill="none" aria-hidden="true"><path d="M2.5 8L6 4.5 9.5 8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+  </button>
+</div>
+
+<script>
+(function(){
+  "use strict";
+
+  /* ============================================================
+     faithful model of architectSignature.java
+     ============================================================ */
+  var ROWS = 5, COLS = 17, MID = Math.floor(5 / 2) + 1;
+  var BANNER = "\nConsidering N = 5\nHere's My Architect Signature...\n Name : Eiladri Kumar Das\nInitials : E K D\n\n";
+
+  function zone(c){
+    if (c <= 5) return 'E';
+    if (c === 6) return 'gap';
+    if (c > 6 && c < 12) return 'K';
+    if (c > 12 && c < 18) return 'D';
+    return 'none';
+  }
+  function whyStar(r, c){
+    var z = zone(c), out = [];
+    if (z === 'E') {
+      if (r === 1) out.push('r == 1');
+      if (r === 5) out.push('r == 5');
+      if (r === MID) out.push('r == 5 / 2 + 1');
+      if (c === 1) out.push('c == 1');
+    } else if (z === 'K') {
+      if (c === 7) out.push('c == 7');
+      if ((r + c) === 11) out.push('r + c == 11');
+      if ((c - r) === 5) out.push('c - r == 5');
+    } else if (z === 'D') {
+      if (r === 1) out.push('r == 1');
+      if (r === 5) out.push('r == 5');
+      if (c === 13) out.push('c == 13');
+      if (c === 17) out.push('c == 17');
+    }
+    return out;
+  }
+  function cell(r, c){
+    var z = zone(c);
+    if (z === 'none') return { ch: '', star: false, z: z, why: [] };
+    var w = whyStar(r, c);
+    if (w.length) return { ch: '* ', star: true, z: z, why: w };
+    return { ch: '  ', star: false, z: z, why: [] };
+  }
+  function rowStr(r){
+    var s = '';
+    for (var c = 1; c <= COLS; c++) s += cell(r, c).ch;
+    return s;
+  }
+  function seg(r, c0, c1){
+    var s = '';
+    for (var c = c0; c <= c1; c++) s += cell(r, c).ch;
+    return s;
+  }
+  function starsIn(s){ return (s.match(/\*/g) || []).length; }
+  function fullOut(){
+    var rows = [];
+    for (var r = 1; r <= ROWS; r++) rows.push(rowStr(r));
+    return BANNER + rows.join('\n') + '\n\n';
+  }
+  function esc(t){ return String(t).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
+
+  /* ============================================================
+     shared chrome
+     ============================================================ */
+  var reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  var revealEls = document.querySelectorAll('.reveal');
+  if ('IntersectionObserver' in window) {
+    var io = new IntersectionObserver(function(entries){
+      entries.forEach(function(e){ if (e.isIntersecting) { e.target.classList.add('in'); io.unobserve(e.target); } });
+    }, { rootMargin: '0px 0px -8% 0px', threshold: 0.08 });
+    revealEls.forEach(function(el){ io.observe(el); });
+  } else { revealEls.forEach(function(el){ el.classList.add('in'); }); }
+
+  var progress = document.getElementById('progress');
+  var navLinks = Array.prototype.slice.call(document.querySelectorAll('.nav-links a'));
+  var navTargets = navLinks.map(function(a){ return document.querySelector(a.getAttribute('href')); });
+  function onScroll(){
+    var h = document.documentElement;
+    var max = (h.scrollHeight - h.clientHeight) || 1;
+    if (progress) progress.style.transform = 'scaleX(' + Math.min(1, Math.max(0, h.scrollTop / max)) + ')';
+    var idx = -1;
+    for (var i = 0; i < navTargets.length; i++) {
+      if (navTargets[i] && navTargets[i].getBoundingClientRect().top <= 150) idx = i;
+    }
+    navLinks.forEach(function(a, i){ a.classList.toggle('active', i === idx); });
+  }
+  window.addEventListener('scroll', onScroll, { passive: true });
+  onScroll();
+
+  var verdictCard = document.getElementById('verdictCard');
+  if (verdictCard && !reduceMotion && window.matchMedia('(hover: hover)').matches) {
+    var host = verdictCard.parentElement;
+    host.addEventListener('mousemove', function(ev){
+      var r = host.getBoundingClientRect();
+      var x = (ev.clientX - r.left) / r.width - 0.5;
+      var y = (ev.clientY - r.top) / r.height - 0.5;
+      verdictCard.style.transform = 'rotateY(' + (x * 6).toFixed(2) + 'deg) rotateX(' + (-y * 6).toFixed(2) + 'deg) translateZ(12px)';
+    });
+    host.addEventListener('mouseleave', function(){ verdictCard.style.transform = ''; });
+  }
+
+  var dock = document.getElementById('dock');
+  var dockToggle = document.getElementById('dockToggle');
+  var dockCur = document.getElementById('dockCur');
+  function syncDockLabel(){
+    if (!dockCur) return;
+    var d = document.querySelector('#segDensity button.on');
+    var g = document.querySelector('#segGlow button.on');
+    dockCur.textContent = (d ? d.textContent : 'balanced') + ' · ' + (g ? g.textContent : 'soft');
+  }
+  function bindSeg(id, attr){
+    var box = document.getElementById(id);
+    if (!box) return;
+    box.addEventListener('click', function(ev){
+      var b = ev.target.closest('button');
+      if (!b) return;
+      box.querySelectorAll('button').forEach(function(x){ x.classList.remove('on'); });
+      b.classList.add('on');
+      document.documentElement.setAttribute('data-' + attr, b.getAttribute('data-' + attr));
+      syncDockLabel();
+    });
+  }
+  bindSeg('segDensity', 'density');
+  bindSeg('segGlow', 'glow');
+  syncDockLabel();
+
+  if (dock && dockToggle) {
+    var idleTimer = null, closeTimer = null;
+    function openDock(){ dock.classList.add('panel-open'); dock.classList.remove('idle'); dockToggle.setAttribute('aria-expanded','true'); if (closeTimer){ clearTimeout(closeTimer); closeTimer = null; } }
+    function closeDock(){ dock.classList.remove('panel-open'); dockToggle.setAttribute('aria-expanded','false'); }
+    function scheduleClose(){ if (closeTimer) clearTimeout(closeTimer); closeTimer = setTimeout(closeDock, 900); }
+    function wakeDock(){
+      dock.classList.remove('idle');
+      if (idleTimer) clearTimeout(idleTimer);
+      idleTimer = setTimeout(function(){ if (!dock.classList.contains('panel-open')) dock.classList.add('idle'); }, 2600);
+    }
+    dockToggle.addEventListener('click', function(){ dock.classList.contains('panel-open') ? closeDock() : openDock(); wakeDock(); });
+    dock.addEventListener('mouseenter', openDock);
+    dock.addEventListener('mouseleave', scheduleClose);
+    dock.addEventListener('focusin', openDock);
+    dock.addEventListener('focusout', scheduleClose);
+    document.addEventListener('keydown', function(ev){ if (ev.key === 'Escape') closeDock(); });
+    document.addEventListener('pointerdown', function(ev){ if (!dock.contains(ev.target)) closeDock(); });
+    window.addEventListener('scroll', wakeDock, { passive: true });
+    wakeDock();
+  }
+
+  [['chal1','ans1'],['chal2','ans2']].forEach(function(pair){
+    var btn = document.getElementById(pair[0]), ans = document.getElementById(pair[1]);
+    if (!btn || !ans) return;
+    btn.addEventListener('click', function(){
+      var open = ans.classList.toggle('open');
+      btn.textContent = open ? 'hide answer' : 'show answer';
+    });
+  });
+
+  var chart = document.getElementById('barChart');
+  if (chart && 'IntersectionObserver' in window) {
+    var bo = new IntersectionObserver(function(es){
+      es.forEach(function(e){
+        if (!e.isIntersecting) return;
+        chart.querySelectorAll('.barfill').forEach(function(f, i){
+          setTimeout(function(){ f.style.width = f.getAttribute('data-w') + '%'; }, i * 90);
+        });
+        bo.disconnect();
+      });
+    }, { threshold: 0.35 });
+    bo.observe(chart);
+  }
+
+  /* ============================================================
+     section 02 — exact output
+     ============================================================ */
+  var exactOut = document.getElementById('exactOut');
+  if (exactOut) exactOut.textContent = fullOut();
+
+  /* ============================================================
+     hero grid + zone strip
+     ============================================================ */
+  (function hero(){
+    var g = document.getElementById('heroGrid');
+    var z = document.getElementById('heroZones');
+    var stats = document.getElementById('heroStats');
+    var stars = 0;
+    for (var r = 1; r <= ROWS; r++) stars += starsIn(rowStr(r));
+    if (document.getElementById('heroStars')) document.getElementById('heroStars').textContent = stars + ' stars';
+
+    if (g) {
+      g.style.gridTemplateColumns = 'repeat(' + COLS + ', 13px)';
+      g.style.gap = '2px';
+      for (var rr = 1; rr <= ROWS; rr++) {
+        for (var cc = 1; cc <= COLS; cc++) {
+          var cl = cell(rr, cc);
+          var d = document.createElement('div');
+          d.style.width = '13px';
+          d.style.height = '13px';
+          d.style.borderRadius = '2.5px';
+          if (cl.star) {
+            d.style.background = cl.z === 'E' ? 'linear-gradient(140deg,#d9fca8,#b6f24a)'
+              : cl.z === 'K' ? 'linear-gradient(140deg,#a7ecff,#4dd4ff)'
+              : 'linear-gradient(140deg,#dcc7ff,#9d7bff)';
+            d.style.boxShadow = '0 0 9px -5px ' + (cl.z === 'E' ? 'rgba(182,242,74,.9)' : cl.z === 'K' ? 'rgba(77,212,255,.9)' : 'rgba(157,123,255,.9)');
+            if (!reduceMotion) {
+              d.style.animation = 'cellPulse .45s cubic-bezier(.22,1,.36,1) both';
+              d.style.animationDelay = Math.min(rr * 32 + cc * 7, 520) + 'ms';
+            }
+          } else {
+            d.style.background = cl.z === 'none' ? 'rgba(255,90,90,.12)' : 'rgba(255,255,255,.035)';
+            if (cl.z === 'none') d.style.outline = '1px dashed rgba(255,120,120,.5)';
+          }
+          g.appendChild(d);
+        }
+      }
+    }
+    if (z) {
+      [['E', 5, 'e'], ['', 1, 'g'], ['K', 5, 'k'], ['', 1, 'x'], ['D', 5, 'd']].forEach(function(spec){
+        var b = document.createElement('div');
+        b.className = 'zb ' + spec[2];
+        b.style.gridColumn = 'span ' + spec[1];
+        b.textContent = spec[2] === 'g' ? '6' : spec[2] === 'x' ? '12' : spec[0];
+        z.appendChild(b);
+      });
+    }
+    if (stats) stats.innerHTML = '85 cells tested · 16 columns print · <span style="color:#ffb3b3">column 12 prints nothing</span><br>' +
+      '43 stars · 37 two-space blanks · 32 characters per row';
+  })();
+
+  /* ============================================================
+     section 02 — claim map
+     ============================================================ */
+  (function claimMap(){
+    var map = document.getElementById('claimMap');
+    if (!map) return;
+    for (var c = 1; c <= COLS; c++) {
+      var z = zone(c);
+      var d = document.createElement('div');
+      d.className = 'cm ' + (z === 'E' ? 'e' : z === 'K' ? 'k' : z === 'D' ? 'd' : z === 'gap' ? 'gap' : 'dead');
+      d.innerHTML = c + '<small>' + (z === 'none' ? 'none' : z === 'gap' ? 'gap' : z) + '</small>';
+      map.appendChild(d);
+    }
+  })();
+
+  /* ============================================================
+     section 05 — column inspector
+     ============================================================ */
+  var sel = 12;
+
+  function ownerName(c){
+    var z = zone(c);
+    if (z === 'E') return 'E zone — columns 1 to 5';
+    if (z === 'gap') return 'no zone — explicit gap branch';
+    if (z === 'K') return 'K zone — columns 7 to 11';
+    if (z === 'D') return 'D zone — columns 13 to 17';
+    return 'no zone — no branch claims this column';
+  }
+  function ownerCond(c){
+    var z = zone(c);
+    if (z === 'E') return 'outerColE <= 5';
+    if (z === 'gap') return 'outerColE == 6';
+    if (z === 'K') return 'outerColE > 6 && outerColE < 12';
+    if (z === 'D') return 'outerColE > 12 && outerColE < 18';
+    return '— (falls off the end of the chain)';
+  }
+
+  function buildPick(){
+    var map = document.getElementById('pickMap');
+    var zones = document.getElementById('pickZones');
+    if (!map) return;
+    for (var c = 1; c <= COLS; c++) {
+      (function(cc){
+        var z = zone(cc);
+        var d = document.createElement('button');
+        d.type = 'button';
+        d.className = 'cm ' + (z === 'E' ? 'e' : z === 'K' ? 'k' : z === 'D' ? 'd' : z === 'gap' ? 'gap' : 'dead');
+        d.innerHTML = cc + '<small>' + (z === 'none' ? 'none' : z === 'gap' ? 'gap' : z) + '</small>';
+        d.setAttribute('aria-label', 'inspect column ' + cc);
+        d.addEventListener('click', function(){ sel = cc; renderPick(); });
+        map.appendChild(d);
+      })(c);
+    }
+    if (zones) {
+      var defs = [['E', 5, 'e'], ['·', 1, 'g'], ['K', 5, 'k'], ['12', 1, 'x'], ['D', 5, 'd']];
+      defs.forEach(function(spec){
+        var b = document.createElement('div');
+        b.className = 'zb ' + spec[2];
+        b.style.gridColumn = 'span ' + spec[1];
+        b.textContent = spec[0];
+        zones.appendChild(b);
+      });
+    }
+  }
+
+  function renderPick(){
+    /* highlight the chosen tile */
+    Array.prototype.forEach.call(document.querySelectorAll('#pickMap .cm'), function(el, i){
+      el.classList.toggle('on', (i + 1) === sel);
+    });
+
+    var z = zone(sel);
+    var on = document.getElementById('ownName');
+    if (on) on.textContent = ownerName(sel);
+    var chars = document.getElementById('ownChars');
+    if (chars) chars.textContent = z === 'none' ? '0 chars × 5 rows' : '2 chars × 5 rows';
+
+    /* chain */
+    var chain = document.getElementById('chainList');
+    if (chain) {
+      chain.innerHTML = '';
+      var tests = [
+        ['E', 'outerColE <= 5', sel <= 5],
+        ['gap', 'outerColE == 6', sel === 6],
+        ['K', 'outerColE > 6 && outerColE < 12', sel > 6 && sel < 12],
+        ['D', 'outerColE > 12 && outerColE < 18', sel > 12 && sel < 18]
+      ];
+      var hit = false;
+      tests.forEach(function(t){
+        var row = document.createElement('div');
+        row.className = 'chr' + (t[2] && !hit ? ' hit' : ' skip');
+        if (t[2]) hit = true;
+        row.innerHTML = '<span class="tag">' + t[0] + '</span><span class="cond">' + esc(t[1]) + '</span><span class="tag">' + (t[2] ? 'true' : 'false') + '</span>';
+        chain.appendChild(row);
+      });
+      var end = document.createElement('div');
+      end.className = 'chr' + (hit ? ' skip' : ' hit');
+      end.innerHTML = '<span class="tag">end</span><span class="cond">no final else — nothing is printed</span><span class="tag">' + (hit ? 'unreached' : 'reached') + '</span>';
+      chain.appendChild(end);
+    }
+
+    /* per row */
+    var body = document.getElementById('colRows');
+    if (body) {
+      body.innerHTML = '';
+      for (var r = 1; r <= ROWS; r++) {
+        var cl = cell(r, sel);
+        var tr = document.createElement('tr');
+        var t1 = document.createElement('td'); t1.className = 'mono'; t1.textContent = r;
+        var t2 = document.createElement('td'); t2.className = 'mono';
+        t2.textContent = cl.ch === '' ? '(nothing)' : '"' + cl.ch + '"';
+        if (cl.star) t2.style.color = z === 'E' ? '#d9fca8' : z === 'K' ? '#a7ecff' : '#dcc7ff';
+        if (cl.ch === '') t2.style.color = '#ff9f9f';
+        var t3 = document.createElement('td'); t3.className = 'mono'; t3.textContent = String(cl.ch.length);
+        var t4 = document.createElement('td'); t4.className = 'mono'; t4.style.fontSize = '11px'; t4.style.color = '#8fa7b0';
+        t4.textContent = cl.ch === '' ? 'no branch' : (cl.why.length ? cl.why.join(' || ') : 'none of the tests');
+        tr.appendChild(t1); tr.appendChild(t2); tr.appendChild(t3); tr.appendChild(t4);
+        body.appendChild(tr);
+      }
+    }
+
+    /* mini grid */
+    var mini = document.getElementById('miniGrid');
+    if (mini) {
+      mini.innerHTML = '';
+      mini.style.gridTemplateColumns = '14px repeat(' + COLS + ', 15px)';
+      var corner = document.createElement('div');
+      corner.className = 'cl';
+      mini.appendChild(corner);
+      for (var c2 = 1; c2 <= COLS; c2++) {
+        var h = document.createElement('div');
+        h.className = 'cl';
+        h.textContent = c2;
+        if (c2 === sel) h.style.color = '#e8fbff';
+        mini.appendChild(h);
+      }
+      for (var r2 = 1; r2 <= ROWS; r2++) {
+        var rl = document.createElement('div');
+        rl.className = 'rl';
+        rl.textContent = r2;
+        mini.appendChild(rl);
+        for (var c3 = 1; c3 <= COLS; c3++) {
+          var cl2 = cell(r2, c3);
+          var d2 = document.createElement('div');
+          d2.className = 'c' + (cl2.star ? ' s' + (cl2.z === 'K' ? ' k' : cl2.z === 'D' ? ' d' : '') : '') + (cl2.z === 'none' ? ' dead' : '');
+          if (c3 === sel) d2.classList.add('hl');
+          d2.title = 'row ' + r2 + ', column ' + c3 + ' → ' + (cl2.ch === '' ? 'nothing' : '"' + cl2.ch + '"');
+          mini.appendChild(d2);
+        }
+      }
+    }
+
+    /* numbers */
+    var stars = 0;
+    for (var r3 = 1; r3 <= ROWS; r3++) stars += starsIn(rowStr(r3));
+    if (document.getElementById('sWidth')) document.getElementById('sWidth').textContent = String(rowStr(1).length);
+    if (document.getElementById('sGrid')) document.getElementById('sGrid').textContent = String(rowStr(1).length * ROWS);
+    if (document.getElementById('sStars')) document.getElementById('sStars').textContent = String(stars);
+
+    var fo = document.getElementById('fullOut');
+    if (fo) fo.textContent = fullOut();
+  }
+
+  /* ============================================================
+     section 05 — the 5 × 17 ledger
+     ============================================================ */
+  (function ledger(){
+    var host = document.getElementById('ledger17');
+    if (!host) return;
+    for (var r = 1; r <= ROWS; r++) {
+      var row = document.createElement('div');
+      row.className = 'lrow';
+      var rn = document.createElement('div');
+      rn.className = 'rn';
+      rn.textContent = r;
+      row.appendChild(rn);
+      var count = 0;
+      for (var c = 1; c <= COLS; c++) {
+        var cl = cell(r, c);
+        var d = document.createElement('div');
+        d.className = 'ch' + (cl.star ? ' s' + (cl.z === 'K' ? ' k' : cl.z === 'D' ? ' d' : '') : '') + (cl.z === 'none' ? ' none' : '');
+        d.textContent = cl.star ? '*' : cl.ch === '' ? '·' : '';
+        if (cl.star) count++;
+        d.title = 'row ' + r + ', column ' + c + ' → ' + (cl.ch === '' ? 'no branch prints nothing' : '"' + cl.ch + '"');
+        row.appendChild(d);
+      }
+      var tot = document.createElement('div');
+      tot.className = 'tot';
+      tot.textContent = count + ' ★';
+      row.appendChild(tot);
+      host.appendChild(row);
+    }
+  })();
+
+  /* ============================================================
+     section 07 — annotated transcript + probes
+     ============================================================ */
+  (function annotate(){
+    var el = document.getElementById('annotOut');
+    if (!el) return;
+    var lines = [];
+    function push(label, text, note){
+      var left = ('  ' + label).slice(-3) + '  ' + text;
+      while (left.length < 38) left += ' ';
+      lines.push(left + '◀ ' + note);
+    }
+    push('·', '(blank)', 'the leading \\n inside println #1');
+    push('1', 'Considering N = 5', 'println #1, no trailing \\n');
+    push('2', "Here's My Architect Signature...", 'println #2 — three \\n inside');
+    push('3', ' Name : Eiladri Kumar Das', 'the leading space is part of the string');
+    push('4', 'Initials : E K D', 'still the same println #2');
+    push('5', '(blank)', 'trailing \\n plus println\'s own newline');
+    for (var r = 1; r <= ROWS; r++) {
+      var row = rowStr(r);
+      push(String(5 + r), row, 'outerRowE = ' + r + ' → ' + row.length + ' chars, ' + starsIn(row) + ' stars');
+    }
+    push('11', '(blank)', 'the bare println() after the loops');
+    el.textContent = lines.join('\n');
+  })();
+
+  (function probes(){
+    function grid(bound){
+      var out = [];
+      for (var r = 1; r <= bound; r++) {
+        var s = '';
+        for (var c = 1; c <= COLS; c++) s += cell(r, c).ch;
+        out.push(s);
+      }
+      return out.join('\n');
+    }
+    var a = document.getElementById('p7');
+    if (a) a.textContent = grid(7);
+    var b = document.getElementById('p3');
+    if (b) b.textContent = grid(3);
+  })();
+
+  /* ============================================================
+     section 11 — highlight the source, keep the copy exact
+     ============================================================ */
+  var srcPre = document.getElementById('srcPre');
+  var rawSource = srcPre ? srcPre.textContent : '';
+  if (srcPre) {
+    var KW = /^(public|class|static|void|int|for|if|else|return|new|String)$/;
+    (function highlight(){
+      var src = rawSource, out = '', i = 0;
+      while (i < src.length) {
+        var ch = src.charAt(i);
+        if (ch === '"') {
+          var j = i + 1;
+          while (j < src.length && src.charAt(j) !== '"') { if (src.charAt(j) === '\\') j++; j++; }
+          out += '<span class="tok-s">' + esc(src.slice(i, j + 1)) + '</span>';
+          i = j + 1;
+        } else if (ch === '/' && src.charAt(i + 1) === '/') {
+          var k = src.indexOf('\n', i);
+          if (k < 0) k = src.length;
+          out += '<span class="tok-c">' + esc(src.slice(i, k)) + '</span>';
+          i = k;
+        } else if (/[A-Za-z_$]/.test(ch)) {
+          var m = i;
+          while (m < src.length && /[A-Za-z0-9_$]/.test(src.charAt(m))) m++;
+          var w = src.slice(i, m);
+          out += KW.test(w) ? '<span class="tok-k">' + w + '</span>' : w;
+          i = m;
+        } else if (/[0-9]/.test(ch)) {
+          var n = i;
+          while (n < src.length && /[0-9]/.test(src.charAt(n))) n++;
+          out += '<span class="tok-n">' + src.slice(i, n) + '</span>';
+          i = n;
+        } else {
+          out += esc(ch);
+          i++;
+        }
+      }
+      srcPre.innerHTML = out;
+    })();
+  }
+
+  var copyBtn = document.getElementById('copySrc');
+  if (srcPre && copyBtn) {
+    copyBtn.addEventListener('click', function(){
+      var done = function(){
+        copyBtn.textContent = 'copied ✓'; copyBtn.classList.add('ok');
+        setTimeout(function(){ copyBtn.textContent = 'copy source'; copyBtn.classList.remove('ok'); }, 1900);
+      };
+      var fail = function(){
+        copyBtn.textContent = 'select + ctrl C';
+        try {
+          var rng = document.createRange(); rng.selectNodeContents(srcPre);
+          var s = window.getSelection(); s.removeAllRanges(); s.addRange(rng);
+        } catch(e){}
+        setTimeout(function(){ copyBtn.textContent = 'copy source'; }, 2400);
+      };
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(rawSource).then(done).catch(fail);
+      } else {
+        try {
+          var ta = document.createElement('textarea');
+          ta.value = rawSource; ta.style.position = 'fixed'; ta.style.opacity = '0';
+          document.body.appendChild(ta); ta.select();
+          var ok = document.execCommand('copy');
+          document.body.removeChild(ta);
+          ok ? done() : fail();
+        } catch(e){ fail(); }
+      }
+    });
+  }
+
+  buildPick();
+  renderPick();
+
+  /* ============================================================
+     section 06 — the trace
+     ============================================================ */
+  function makeSteps(mode){
+    var steps = [];
+    var committed = '';
+    var first = (mode === 'all') ? 1 : Number(mode);
+    var last = (mode === 'all') ? ROWS : Number(mode);
+
+    if (mode === 'all') {
+      steps.push({
+        title: 'main() begins',
+        detail: 'One method, no input. The banner statements run before either loop exists, so the first thing the programme writes is text, not stars.',
+        vars: [['step', 'banner'], ['rows printed', '0 / 5'], ['stars', '0']], out: '', row: ''
+      });
+      steps.push({
+        title: 'Banner — two println calls',
+        detail: 'The first string starts with \\n, so the transcript opens with a blank line. The second carries three \\n escapes and ends with one, so a single statement writes three lines plus a blank.',
+        vars: [['println calls', '2'], ['lines written', '4 + 1'], ['rows printed', '0 / 5']], out: BANNER, row: ''
+      });
+      steps.push({
+        title: 'allowedCols = 5 * 3 + 2 → 17',
+        detail: 'Java multiplies first, then adds: 15 columns for the three letters plus 2 for the gap columns. This number becomes the inner loop bound.',
+        vars: [['allowedCols', '17'], ['5 * 3', '15'], ['rows printed', '0 / 5']], out: BANNER, row: ''
+      });
+      committed = BANNER;
+    } else {
+      for (var pr = 1; pr < first; pr++) committed += rowStr(pr) + '\n';
+      committed = BANNER + committed;
+    }
+
+    for (var r = first; r <= last; r++) {
+      var part = '';
+      function push(title, detail, vars, chunk){
+        part += chunk;
+        steps.push({ title: title, detail: detail, vars: vars, out: committed, row: part });
+      }
+
+      push('outerRowE = ' + r,
+        'The outer loop advances. Every row test in the chain now compares against ' + r + ', and the inner loop starts again at column 1.',
+        [['outerRowE', String(r)], ['outerColE', '1'], ['stars this row', '0']], '');
+
+      var eSpace = seg(r, 1, 5);
+      push('columns 1–5 → E branch',
+        (r === 1 || r === 5 || r === MID)
+          ? 'The row test is true on this row, so all five columns of the E print "* " — a bar two characters per column, ten in total.'
+          : 'The row test fails here, so only column 1 (c == 1) prints. Columns 2 to 5 each print two spaces, and the zone contributes one star.',
+        [['branch', 'E (c <= 5)'], ['stars so far', String(starsIn(eSpace))], ['chars added', '10']], eSpace);
+
+      push('column 6 → gap branch',
+        'The second branch exists only for this column. It prints two spaces and asks no question about the row, which keeps the E and the K at a fixed distance.',
+        [['branch', 'gap (c == 6)'], ['stars so far', String(starsIn(seg(r, 1, 6)))], ['chars added', '2']], seg(r, 6, 6));
+
+      var kStr = seg(r, 7, 11), kNotes = [];
+      if (r === MID) kNotes.push('Both diagonals land inside the zone on this row and meet at column 8, where r + c = 11 and c − r = 5 are true at the same time.');
+      else if (r === 1) kNotes.push('The upper diagonal reaches column 10; the other one would land on column 6, outside the zone, so it never prints.');
+      else if (r === 5) kNotes.push('The lower diagonal reaches column 10; the upper one would land on column 6, which is outside the zone.');
+      else kNotes.push('The stem prints at column 7 and one diagonal adds a second star — column 9 on rows 2 and 4.');
+      kNotes.push('Column 7 prints on every row because it is tested explicitly.');
+      push('columns 7–11 → K branch', kNotes.join(' '),
+        [['branch', 'K (6 < c < 12)'], ['stars so far', String(starsIn(seg(r, 1, 11)))], ['chars added', '10']], kStr);
+
+      push('column 12 → no branch',
+        'The K branch stops at c < 12 and the D branch starts at c > 12. Column 12 satisfies neither, and because the chain has no final else, this pass prints nothing at all — zero characters rather than two spaces.',
+        [['branch', 'none'], ['chars added', '0'], ['row so far', String(part.length)]], '');
+
+      var dStr = seg(r, 13, 17);
+      push('columns 13–17 → D branch',
+        (r === 1 || r === 5)
+          ? 'The row test fills the whole width of the D, so its top or bottom edge prints across all five columns.'
+          : 'Rows 2 to 4 give the D only its walls: column 13 and column 17 print, columns 14 to 16 print two spaces each.',
+        [['branch', 'D (12 < c < 18)'], ['stars so far', String(starsIn(seg(r, 1, COLS)))], ['chars added', '10']], dStr);
+
+      var full = rowStr(r);
+      steps.push({
+        title: 'println() — row ' + r + ' complete',
+        detail: 'All seventeen columns have been tested, so the newline is written and the row becomes permanent. The line is ' + full.length + ' characters: seventeen columns of two, minus the two that column 12 never printed.',
+        vars: [['outerRowE', String(r)], ['row width', full.length + ' chars'], ['stars this row', String(starsIn(full))]],
+        out: committed, row: full
+      });
+      committed += full + '\n';
+    }
+
+    if (mode === 'all') {
+      steps.push({
+        title: 'println() — one final blank line',
+        detail: 'The outer loop has ended. A bare println() writes a newline, so the output finishes with one empty line after the fifth row.',
+        vars: [['rows printed', '5 / 5'], ['stars', '43'], ['output ends', 'blank line']],
+        out: committed, row: ''
+      });
+    }
+    return steps;
+  }
+
+  var steps = makeSteps('all'), at = 0;
+
+  var T = {
+    card: document.querySelector('.now-card'),
+    no: document.getElementById('stepNo'),
+    title: document.getElementById('stepTitle'),
+    detail: document.getElementById('stepDetail'),
+    vars: document.getElementById('stepVars'),
+    out: document.getElementById('traceOut'),
+    row: document.getElementById('traceRow'),
+    rail: document.getElementById('traceRail'),
+    count: document.getElementById('traceCount'),
+    play: document.getElementById('tPlay'),
+    sel: document.getElementById('traceCase'),
+    state: document.getElementById('stackState'),
+    fRow: document.getElementById('frameRow'),
+    fCol: document.getElementById('frameCol')
+  };
+
+  function renderTrace(animate){
+    if (!T.title) return;
+    at = Math.max(0, Math.min(steps.length - 1, at));
+    var s = steps[at];
+
+    if (animate && T.card) {
+      T.card.classList.add('swap');
+      setTimeout(function(){ T.card.classList.remove('swap'); }, 120);
+    }
+    T.no.textContent = 'step ' + (at + 1);
+    T.title.textContent = s.title;
+    T.detail.textContent = s.detail;
+
+    T.vars.innerHTML = '';
+    s.vars.forEach(function(pair){
+      var d = document.createElement('div');
+      d.className = 'vtile';
+      var k = document.createElement('div'); k.className = 'k'; k.textContent = pair[0];
+      var v = document.createElement('div'); v.className = 'v'; v.textContent = pair[1];
+      d.appendChild(k); d.appendChild(v);
+      T.vars.appendChild(d);
+    });
+
+    T.out.textContent = s.out + s.row + '▌';
+    T.out.scrollTop = T.out.scrollHeight;
+
+    if (s.row.length) {
+      T.row.textContent = s.row;
+      T.row.style.color = '#e8eefc';
+    } else {
+      T.row.textContent = s.out.length ? '—' : 'nothing printed yet';
+      T.row.style.color = '#4a6270';
+    }
+
+    T.count.textContent = 'step ' + (at + 1) + ' / ' + steps.length;
+
+    var inCols = /columns|column 6|column 12/.test(s.title);
+    if (T.fRow) T.fRow.classList.toggle('active', !inCols);
+    if (T.fCol) T.fCol.classList.toggle('active', inCols);
+    if (T.state) T.state.textContent = s.title.indexOf('final blank') === 0 ? 'main ending' : 'main running';
+
+    if (T.rail) {
+      Array.prototype.forEach.call(T.rail.children, function(b, k){
+        b.classList.toggle('cur', k === at);
+        b.classList.toggle('done', k < at);
+      });
+    }
+  }
+
+  function buildRail(){
+    if (!T.rail) return;
+    T.rail.innerHTML = '';
+    steps.forEach(function(s, k){
+      var b = document.createElement('button');
+      b.type = 'button';
+      b.setAttribute('aria-label', 'step ' + (k + 1) + ': ' + s.title);
+      b.addEventListener('click', function(){ stopPlay(); at = k; renderTrace(true); });
+      T.rail.appendChild(b);
+    });
+  }
+
+  var playTimer = null;
+  function stopPlay(){
+    if (playTimer) { clearInterval(playTimer); playTimer = null; }
+    if (T.play) T.play.textContent = '▶ play';
+  }
+  function startPlay(){
+    stopPlay();
+    if (at >= steps.length - 1) { at = 0; renderTrace(false); }
+    T.play.textContent = '❚❚ pause';
+    playTimer = setInterval(function(){
+      if (at >= steps.length - 1) { stopPlay(); return; }
+      at++;
+      renderTrace(true);
+    }, reduceMotion ? 880 : 740);
+  }
+
+  if (T.play) {
+    T.play.addEventListener('click', function(){ playTimer ? stopPlay() : startPlay(); });
+    document.getElementById('tPrev').addEventListener('click', function(){ stopPlay(); at--; renderTrace(true); });
+    document.getElementById('tNext').addEventListener('click', function(){ stopPlay(); at++; renderTrace(true); });
+    document.getElementById('tReset').addEventListener('click', function(){ stopPlay(); at = 0; renderTrace(true); });
+    T.sel.addEventListener('change', function(){
+      stopPlay();
+      steps = makeSteps(T.sel.value);
+      at = 0;
+      buildRail();
+      renderTrace(false);
+    });
+    buildRail();
+    renderTrace(false);
+  }
+})();
+</script>
+<script>(function(){function c(){var b=a.contentDocument||(a.contentWindow&&a.contentWindow.document);if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'a4e8a1effacdcb6e',t:'MTc5MjY3MzQ3Nw=='};var a=document.createElement('script');a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
+</html>
